@@ -1,0 +1,202 @@
+package HTML::FormFu::Element::simple_table;
+
+use strict;
+use warnings;
+use base 'HTML::FormFu::Element::block';
+
+use HTML::FormFu::Util qw/ append_xml_attribute /;
+use Carp qw/ croak /;
+
+__PACKAGE__->mk_accessors(qw/ headers odd_class even_class /);
+
+sub new {
+    my $self = shift->SUPER::new(@_);
+
+    $self->tag('table');
+
+    return $self;
+}
+
+sub _add_headers {
+    my ($self) = @_;
+
+    my $headers = $self->headers;
+    
+    return if !$headers || !@$headers;    
+    
+    eval {
+        my @foo = @$headers;
+    };
+    croak "headers must be passed as an array-ref" if $@;
+    
+    my @original_rows = @{ $self->_elements };
+    $self->_elements([]);
+    
+    my $header_row = $self->element('block');
+    $header_row->tag('tr');
+    
+    for my $text ( @$headers ) {
+        my $th = $header_row->element('block');
+        $th->tag('th');
+        $th->content($text);
+    }
+    
+    if (@original_rows) {
+        push @{ $self->_elements }, @original_rows;
+    }
+    
+    return;
+}
+
+sub rows {
+    my ( $self, $rows ) = @_;
+    
+    croak "too many arguments" if @_ > 2;
+    
+    eval {
+        my @foo = @$rows;
+    };
+    croak "rows must be passed as an array-ref" if $@;
+    
+    for my $cells (@$rows) {
+        my @cells;
+        eval {
+            @cells = @$cells;
+        };
+        croak "each row must be an array-ref" if $@;
+        
+        my $row = $self->element('block');
+        $row->tag('tr');
+        
+        for my $cell (@cells) {
+            my $td = $row->element('block');
+            $td->tag('td');
+            $td->element($cell);
+        }
+    }
+    
+    return $self;
+}
+
+sub render {
+    my $self = shift;
+    
+    my $copy = $self->clone;
+    
+    my @elements = @{ $copy->_elements };
+    my $odd      = $self->odd_class;
+    my $even     = $self->even_class;
+    
+    for my $i ( 1 .. scalar @elements ) {
+        my $row = $elements[$i-1];
+        
+        if ( $i % 2 ) {
+            $row->attributes({ class => $odd })
+                if defined $odd;
+        }
+        else {
+            $row->attributes({ class => $even })
+                if defined $even;
+        }
+    }
+    
+    $copy->_add_headers;
+
+    my $render = $copy->SUPER::render({
+        @_ ? %{$_[0]} : ()
+        });
+
+    append_xml_attribute( $render->attributes, 'class', $self->type );
+
+    return $render;
+}
+
+1;
+
+__END__
+
+=head1 NAME
+
+HTML::FormFu::Element::simple_table
+
+=head1 SYNOPSIS
+
+The following is yaml markup for a table consisting of a header row 
+containing 2 C<th> cells, and a further 2 rows, each containing 2 C<td> 
+cells. 
+
+    type: simple_table
+    headers: 
+      - One
+      - Two
+    rows: 
+      - 
+        - type: input
+          name: one_a
+        - type: input
+          name: two_a
+      - 
+        - type: input
+          name: one_b
+        - type: input
+          name: two_b
+
+=head1 DESCRIPTION
+
+Sometimes you just really need to use a table to display some fields in a 
+grid format.
+
+As it's name suggests, this is a compromise between power and simplicity. 
+If you want more control of the markup, you'll probably just have to revert 
+to using nested L<block's|HTML::FormFu::Element::block>, setting the tags to 
+table, tr, td, etc. and adding the cell contents as elements.
+
+=head1 METHODS
+
+=head2 headers
+
+Input Value: \@headers
+
+L</headers> accepts an arrayref of strings. Each string is xml-escaped and 
+inserted into a new header cell.
+
+=head2 rows
+
+Input Value: \@rows
+
+L</rows> accepts an array-ref, each item representing a new row. Each row 
+should be comprised of an array-ref, each item representing a table cell.
+
+Each cell item should be appropriate for passing to L<HTML::FormFu/element>; 
+so either a single element's definition, or an array-ref of element 
+definitions.
+
+=head2 odd_class
+
+Input Value: $string
+
+The supplied string will be used as the class-name for each odd-numbered row 
+(not counting any header row).
+
+=head2 even_class
+
+Input Value: $string
+
+The supplied string will be used as the class-name for each even-numbered row 
+(not counting any header row).
+
+=head1 SEE ALSO
+
+Is a sub-class of, and inherits methods from L<HTML::FormFu::Element::block>, 
+L<HTML::FormFu::Element>
+
+L<HTML::FormFu::FormFu>
+
+=head1 AUTHOR
+
+Carl Franks, C<cfranks@cpan.org>
+
+=head1 LICENSE
+
+This library is free software, you can redistribute it and/or modify it under
+the same terms as Perl itself.
