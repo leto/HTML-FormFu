@@ -34,6 +34,7 @@ requires:
   Scalar::Util: 0
   Storable: 2.05
   Template: 0
+  YAML::Syck: 0
   perl: 5.8.1
 tests: t/*.t t/*/*.t
-version: 0.01000_01
+version: 0.01000_02
