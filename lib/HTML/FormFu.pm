@@ -1,6 +1,5 @@
 package HTML::FormFu;
 use strict;
-use warnings;
 use base 'Class::Accessor::Chained::Fast';
 
 use HTML::FormFu::Attribute qw/
@@ -95,7 +94,7 @@ __PACKAGE__->mk_get_one_methods(
 *transformers = \&transformer;
 *loc          = \&localize;
 
-our $VERSION = '0.01002';
+our $VERSION = '0.01003';
 $VERSION = eval $VERSION;
 
 Class::C3::initialize();

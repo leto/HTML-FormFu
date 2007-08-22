@@ -20,6 +20,7 @@ requires:
   Class::C3: 0
   Class::Data::Accessor: 0
   Config::Any: 0
+  Data::Visitor::Callback: 0
   Date::Calc: 0
   DateTime::Format::Builder: 0
   DateTime::Format::Strptime: 0
@@ -39,4 +40,4 @@ requires:
   YAML::Syck: 0
   perl: 5.8.1
 tests: t/*.t t/*/*.t
-version: 0.01002
+version: 0.01003
