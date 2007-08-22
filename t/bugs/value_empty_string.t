@@ -7,7 +7,8 @@ use HTML::FormFu;
 
 my $form = HTML::FormFu->new;
 
-$form->element('text')->name('foo')->default('');
+$form->element('Text')->name('foo')->default('');
 
-like( $form->get_field('foo'), qr/\Q value="" /x, 'empty value appears in XML' );
+like( $form->get_field('foo'), qr/\Q value="" /x,
+    'empty value appears in XML' );
 

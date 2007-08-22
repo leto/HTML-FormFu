@@ -7,9 +7,9 @@ use HTML::FormFu;
 
 my $form = HTML::FormFu->new;
 
-$form->element('text')->name('foo');
-$form->element('text')->name('bar');
-$form->element('text')->name('string');
+$form->element('Text')->name('foo');
+$form->element('Text')->name('bar');
+$form->element('Text')->name('string');
 
 $form->constraint( 'Number', 'foo', 'bar', 'string' );
 
@@ -30,7 +30,7 @@ $form->process( {
 
     is( @$errors, 1 );
 
-    is( $errors->[0]->name, 'bar' );
+    is( $errors->[0]->name,    'bar' );
     is( $errors->[0]->message, 'This field must be a number' )
 }
 
@@ -62,12 +62,12 @@ $form->process( {
     is( $errors->[0]->name,  'bar' );
     is( $errors->[0]->type,  'Number' );
     is( $errors->[0]->stage, 'constraint' );
-    
+
     my $xhtml = qq{<span class="text error error_constraint_number">
 <span class="error_message error_constraint_number">This field must be a number</span>
 <input name="bar" type="text" value="2" />
 </span>};
-    
+
     is( $form->get_field('bar'), $xhtml );
 }
 

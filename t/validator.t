@@ -8,17 +8,17 @@ use HTML::FormFu;
 
 my $form = HTML::FormFu->new->localize_class('HTMLFormFu::I18N');
 
-$form->element('text')->name('foo');
-$form->element('text')->name('bar');
+$form->element('Text')->name('foo');
+$form->element('Text')->name('bar');
 
 $form->validator('+HTMLFormFu::MyValidator');
 
 # Valid
 {
-    $form->process({
+    $form->process( {
             foo => 'aaa',
             bar => 'bbbbbbb',
-        });
+        } );
 
     ok( $form->valid('foo'), 'foo valid' );
     ok( $form->valid('bar'), 'bar valid' );
@@ -26,18 +26,18 @@ $form->validator('+HTMLFormFu::MyValidator');
 
 # Invalid
 {
-    $form->process({
+    $form->process( {
             foo => 'aaa',
             bar => 'foo',
-        });
+        } );
 
     ok( $form->valid('foo'), 'foo valid' );
     ok( !$form->valid('bar'), 'bar not valid' );
-    
+
     my ($error) = @{ $form->get_errors };
-    
-    is( $error->class, 'error_validator_htmlformfu_myvalidator' );
-    is( $error->type, 'HTMLFormFu::MyValidator' );
+
+    is( $error->class,   'error_validator_htmlformfu_myvalidator' );
+    is( $error->type,    'HTMLFormFu::MyValidator' );
     is( $error->message, 'myvalidator error!' );
 }
 

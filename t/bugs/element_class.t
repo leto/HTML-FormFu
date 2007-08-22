@@ -14,8 +14,8 @@ Fixed by cloning the elements in HTML::FormFu::result()
 
 my $form = HTML::FormFu->new;
 
-$form->element('text')->name('foo');
-$form->element('text')->name('bar');
+$form->element('Text')->name('foo');
+$form->element('Text')->name('bar');
 
 my $xhtml = <<EOF;
 <form action="" method="post">
@@ -30,12 +30,12 @@ EOF
 
 # 1st result
 {
-    $form->process({});
+    $form->process( {} );
     is( "$form", $xhtml, 'stringified form' );
 }
 
 # 2nd result
 {
-    $form->process({});
+    $form->process( {} );
     is( "$form", $xhtml, 'stringified form' );
 }

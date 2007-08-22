@@ -7,12 +7,12 @@ use HTML::FormFu;
 
 my $form = HTML::FormFu->new;
 
-$form->element('text')->name('foo');
+$form->element('Text')->name('foo');
 
 $form->constraint('Required');
 
 $form->constraint('Regex')->regex(qr/^\d+$/)
-    ->message_loc('form_integer_error');
+    ->message_loc('form_constraint_integer');
 
 $form->process( { foo => 'a' } );
 

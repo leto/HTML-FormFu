@@ -3,6 +3,7 @@ package HTML::FormFu::Constraint;
 use strict;
 use warnings;
 use base 'HTML::FormFu::Processor';
+use Class::C3;
 
 use HTML::FormFu::Exception::Constraint;
 use Scalar::Util qw/ blessed /;
@@ -21,24 +22,22 @@ sub process {
         eval { my @x = @$value };
         croak $@ if $@;
 
-        push @errors, eval {
-            $self->constrain_values( $value, $params );
-        };
+        push @errors, eval { $self->constrain_values( $value, $params ); };
         if ($@) {
-            push @errors, $self->mk_errors({
-                pass    => 0,
-                message => $@,
-            });
+            push @errors,
+                $self->mk_errors( {
+                    pass    => 0,
+                    message => $@,
+                } );
         }
     }
     else {
-        my $ok = eval {
-            $self->constrain_value( $value, $params );
-        };
-        push @errors, $self->mk_errors({
-            pass    => ( $@ || !$ok ) ? 0 : 1,
-            message => $@,
-        });
+        my $ok = eval { $self->constrain_value( $value, $params ); };
+        push @errors,
+            $self->mk_errors( {
+                pass => ( $@ || !$ok ) ? 0 : 1,
+                message => $@,
+            } );
     }
 
     return @errors;
@@ -50,14 +49,13 @@ sub constrain_values {
     my @errors;
 
     for my $value (@$values) {
-        my $ok = eval {
-            $self->constrain_value( $value, $params );
-        };
-        
-        push @errors, $self->mk_errors({
-            pass    => ( $@ || !$ok ) ? 0 : 1,
-            message => $@,
-        });
+        my $ok = eval { $self->constrain_value( $value, $params ); };
+
+        push @errors,
+            $self->mk_errors( {
+                pass => ( $@ || !$ok ) ? 0 : 1,
+                message => $@,
+            } );
     }
 
     return @errors;
@@ -69,32 +67,32 @@ sub constrain_value {
 
 sub mk_errors {
     my ( $self, $args ) = @_;
-    
+
     my $pass    = $args->{pass};
     my $message = $args->{message};
 
-    my @errors;    
-    my $name  = $self->name;
+    my @errors;
+    my $name = $self->name;
     my $force = $self->force_errors || $self->parent->force_errors;
-    
+
     if ( !$pass || $force ) {
         my $error = $self->mk_error($message);
-        
+
         $error->forced(1) if $pass;
-        
+
         push @errors, $error;
     }
-    
+
     return @errors;
 }
 
 sub mk_error {
     my ( $self, $err ) = @_;
-    
+
     if ( !blessed $err || !$err->isa('HTML::FormFu::Exception::Constraint') ) {
         $err = HTML::FormFu::Exception::Constraint->new;
     }
-    
+
     return $err;
 }
 
@@ -126,13 +124,13 @@ HTML::FormFu::Constraint - Constraint Base Class
 =head1 DESCRIPTION
 
 C<constraints()> and C<constraint> can be called on any 
-L<form|HTML::FormFu>, L<block element|HTML::FormFu::Element::block> 
-(includes fieldsets) or L<field element|HTML::FormFu::Element::field>.
+L<form|HTML::FormFu>, L<block element|HTML::FormFu::Element::Block> 
+(includes fieldsets) or L<field element|HTML::FormFu::Element::_Field>.
 
 If called on a field element, no C<name> argument should be passed.
 
 If called on a L<form|HTML::FormFu> or 
-L<block element|HTML::FormFu::Element::block>, if no C<name> argument is 
+L<block element|HTML::FormFu::Element::Block>, if no C<name> argument is 
 provided, a new constraint is created for and added to every field on that 
 form or block.
 
@@ -178,7 +176,7 @@ to replace C<[_1]>, C<[_2]>, etc. in the localized string.
 
 =head2 parent
 
-Returns the L<HTML::FormFu::Element::field> object that the constraint is 
+Returns the L<HTML::FormFu::Element::_Field> object that the constraint is 
 associated with.
 
 =head2 form

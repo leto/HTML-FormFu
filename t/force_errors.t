@@ -7,8 +7,8 @@ use HTML::FormFu;
 
 my $form = HTML::FormFu->new->force_errors(1);
 
-$form->element('text')->name('foo')->constraint('Integer');
-$form->element('text')->name('bar')->constraint('Integer');
+$form->element('Text')->name('foo')->constraint('Integer');
+$form->element('Text')->name('bar')->constraint('Integer');
 
 {
     $form->process( {
@@ -20,13 +20,13 @@ $form->element('text')->name('bar')->constraint('Integer');
 
     ok( !$form->has_errors('foo') );
     ok( !$form->has_errors('bar') );
-    
-    ok( $form->get_errors({ name => 'foo', forced => 1 }) );
-    ok( $form->get_errors({ name => 'bar', forced => 1 }) );
-    
+
+    ok( $form->get_errors( { name => 'foo', forced => 1 } ) );
+    ok( $form->get_errors( { name => 'bar', forced => 1 } ) );
+
     ok( $form->valid('foo') );
     ok( $form->valid('bar') );
-    
+
     ok( $form->submitted_and_valid );
 }
 
@@ -40,11 +40,11 @@ $form->element('text')->name('bar')->constraint('Integer');
 
     ok( !$form->has_errors('foo') );
     ok( $form->has_errors('bar') );
-    
-    ok( $form->get_errors({ name => 'foo', forced => 1 }) );
-    
+
+    ok( $form->get_errors( { name => 'foo', forced => 1 } ) );
+
     ok( $form->valid('foo') );
     ok( !$form->valid('bar') );
-    
+
     ok( !$form->submitted_and_valid );
 }

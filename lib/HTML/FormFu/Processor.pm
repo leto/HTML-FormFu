@@ -3,6 +3,7 @@ package HTML::FormFu::Processor;
 use strict;
 use warnings;
 use base 'Class::Accessor::Chained::Fast';
+use Class::C3;
 
 use HTML::FormFu::Accessor qw( mk_output_accessors );
 use HTML::FormFu::ObjectUtil qw( populate form name );
@@ -12,7 +13,8 @@ use Carp qw/ croak /;
 use overload
     'eq' => sub { refaddr $_[0] eq refaddr $_[1] },
     '==' => sub { refaddr $_[0] eq refaddr $_[1] },
-    bool => sub {1};
+    bool => sub {1},
+    fallback => 1;
 
 __PACKAGE__->mk_accessors(qw/ type parent localize_args /);
 
@@ -39,10 +41,10 @@ sub new {
 }
 
 sub clone {
-    my ( $self ) = @_;
-    
+    my ($self) = @_;
+
     my %new = %$self;
-    
+
     return bless \%new, ref $self;
 }
 

@@ -3,6 +3,7 @@ package HTML::FormFu::Filter;
 use strict;
 use warnings;
 use base 'Class::Accessor::Chained::Fast';
+use Class::C3;
 
 use HTML::FormFu::ObjectUtil qw( populate form name );
 use Carp qw( croak );
@@ -43,10 +44,10 @@ sub process {
 }
 
 sub clone {
-    my ( $self ) = @_;
-    
+    my ($self) = @_;
+
     my %new = %$self;
-    
+
     return bless \%new, ref $self;
 }
 
@@ -80,13 +81,13 @@ HTML::FormFu::Filter - Filter Base Class
 =head1 DESCRIPTION
 
 C<filters()> and C<filter> can be called on any L<form|HTML::FormFu>, 
-L<block element|HTML::FormFu::Element::block> (includes fieldsets) or 
-L<field element|HTML::FormFu::Element::field>.
+L<block element|HTML::FormFu::Element::Block> (includes fieldsets) or 
+L<field element|HTML::FormFu::Element::_Field>.
 
 If called on a field element, no C<name> argument should be passed.
 
 If called on a L<form|HTML::FormFu> or 
-L<block element|HTML::FormFu::Element::block>, if no C<name> argument is 
+L<block element|HTML::FormFu::Element::Block>, if no C<name> argument is 
 provided, a new filter is created for and added to every field on that form 
 or block.
 
@@ -105,7 +106,7 @@ to replace C<[_1]>, C<[_2]>, etc. in the localized string.
 
 =head2 parent
 
-Returns the L<HTML::FormFu::Element::field> object that the filter is 
+Returns the L<HTML::FormFu::Element::_Field> object that the filter is 
 associated with.
 
 =head2 form

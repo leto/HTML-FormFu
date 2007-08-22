@@ -4,9 +4,10 @@ use strict;
 use warnings;
 use base 'Class::Accessor::Chained::Fast';
 
-use HTML::FormFu::Accessor qw/ mk_inherited_accessors mk_output_accessors /;
-use HTML::FormFu::Attribute qw/ 
-    mk_attrs mk_attr_accessors mk_add_methods mk_single_methods 
+use HTML::FormFu::Accessor qw/ mk_inherited_accessors mk_output_accessors
+    mk_inherited_merging_accessors /;
+use HTML::FormFu::Attribute qw/
+    mk_attrs mk_attr_accessors mk_add_methods mk_single_methods
     mk_require_methods mk_get_methods mk_get_one_methods /;
 use HTML::FormFu::Constraint;
 use HTML::FormFu::Exception;
@@ -14,15 +15,15 @@ use HTML::FormFu::FakeQuery;
 use HTML::FormFu::Filter;
 use HTML::FormFu::Inflator;
 use HTML::FormFu::Localize;
-use HTML::FormFu::ObjectUtil qw/ 
-    _single_element _require_constraint 
-    get_elements get_element get_all_elements get_all_element 
+use HTML::FormFu::ObjectUtil qw/
+    _single_element _require_constraint
+    get_elements get_element get_all_elements get_all_element
     get_fields get_field get_errors get_error clear_errors
     populate load_config_file insert_before insert_after form
     _render_class clone stash constraints_from_dbic /;
 use HTML::FormFu::Util qw/ _parse_args require_class _get_elements xml_escape /;
 use List::MoreUtils qw/ uniq /;
-use Scalar::Util qw/ blessed weaken /;
+use Scalar::Util qw/ blessed refaddr weaken /;
 use Storable qw/ dclone /;
 use Regexp::Copy;
 use Carp qw/ croak /;
@@ -30,8 +31,9 @@ use Carp qw/ croak /;
 use overload
     'eq' => sub { refaddr $_[0] eq refaddr $_[1] },
     '==' => sub { refaddr $_[0] eq refaddr $_[1] },
-    '""' => sub { return shift->render },
-    bool => sub {1};
+    '""'     => sub { return shift->render },
+    bool     => sub {1},
+    fallback => 1;
 
 __PACKAGE__->mk_attrs(qw/ attributes /);
 
@@ -50,27 +52,40 @@ __PACKAGE__->mk_output_accessors(qw/ form_error_message /);
 
 __PACKAGE__->mk_inherited_accessors(
     qw/ auto_id auto_label auto_error_class auto_error_message
-    auto_constraint_class auto_inflator_class auto_validator_class 
-    auto_transformer_class
-    render_class render_class_prefix render_class_args 
-    render_method 
-    render_processed_value force_errors /
+        auto_constraint_class auto_inflator_class auto_validator_class
+        auto_transformer_class
+        render_class render_class_prefix
+        render_method
+        render_processed_value force_errors /
 );
 
-__PACKAGE__->mk_add_methods(qw/ 
-    element deflator filter constraint inflator validator transformer /);
+__PACKAGE__->mk_inherited_merging_accessors(
+    qw/ render_class_args config_callback / );
 
-__PACKAGE__->mk_single_methods(qw/ 
-    deflator filter constraint inflator validator transformer /);
+__PACKAGE__->mk_add_methods(
+    qw/
+        element deflator filter constraint inflator validator transformer /
+);
 
-__PACKAGE__->mk_require_methods(qw/ 
-    deflator filter inflator validator transformer /);
+__PACKAGE__->mk_single_methods(
+    qw/
+        deflator filter constraint inflator validator transformer /
+);
 
-__PACKAGE__->mk_get_methods(qw/ 
-    deflator filter constraint inflator validator transformer /);
+__PACKAGE__->mk_require_methods(
+    qw/
+        deflator filter inflator validator transformer /
+);
 
-__PACKAGE__->mk_get_one_methods(qw/ 
-    deflator filter constraint inflator validator tranformer /);
+__PACKAGE__->mk_get_methods(
+    qw/
+        deflator filter constraint inflator validator transformer /
+);
+
+__PACKAGE__->mk_get_one_methods(
+    qw/
+        deflator filter constraint inflator validator tranformer /
+);
 
 *elements     = \&element;
 *constraints  = \&constraint;
@@ -81,7 +96,10 @@ __PACKAGE__->mk_get_one_methods(qw/
 *transformers = \&transformer;
 *loc          = \&localize;
 
-our $VERSION = '0.01000_03';
+our $VERSION = '0.01001';
+$VERSION = eval $VERSION;
+
+Class::C3::initialize();
 
 sub new {
     my $class = shift;
@@ -91,7 +109,7 @@ sub new {
     croak "attributes argument must be a hashref" if $@;
 
     my $self = bless {}, $class;
-    
+
     my %defaults = (
         _elements           => [],
         _valid_names        => [],
@@ -110,7 +128,7 @@ sub new {
         languages           => ['en'],
         localize_class      => 'HTML::FormFu::I18N',
         auto_error_class    => 'error_%s_%t',
-        auto_error_message  => 'form_%t_error',
+        auto_error_message  => 'form_%s_%t',
     );
 
     $self->populate( \%defaults );
@@ -122,17 +140,17 @@ sub new {
 
 sub auto_fieldset {
     my $self = shift;
-    
+
     return $self->_auto_fieldset if !@_;
-    
-    my %opts = ref $_[0] ? %{$_[0]} : ();
-    
-    $opts{type} = 'fieldset';
-    
+
+    my %opts = ref $_[0] ? %{ $_[0] } : ();
+
+    $opts{type} = 'Fieldset';
+
     $self->element( \%opts );
-    
+
     $self->_auto_fieldset(1);
-    
+
     return $self;
 }
 
@@ -141,7 +159,7 @@ sub process {
 
     $self->input(             {} );
     $self->_processed_params( {} );
-    $self->_valid_names(      [] );
+    $self->_valid_names( [] );
     $self->clear_errors;
 
     my $query;
@@ -152,50 +170,49 @@ sub process {
     else {
         $query = $self->query;
     }
+
+    if ( defined $query && !blessed($query) ) {
+        $query = HTML::FormFu::FakeQuery->new($query);
+
+        $self->query($query);
+    }
+
+    for my $elem ( @{ $self->get_elements } ) {
+        $elem->process;
+    }
+
     my $submitted;
-    my @params;
 
     if ( defined $query ) {
-        $query = HTML::FormFu::FakeQuery->new($query)
-            if !blessed($query);
-
-        eval { @params = $query->param };
+        eval { my @params = $query->param };
         croak "Invalid query object: $@" if $@;
 
         $submitted = $self->_submitted($query);
     }
-    
-    $self->submitted( $submitted );
-    
+
+    $self->submitted($submitted);
+
     return if !$submitted;
-    
-    for my $elem ( @{ $self->get_elements } ) {
-        $elem->process;
-    }
 
     my %params;
 
     for my $param ( $query->param ) {
 
         # don't allow names without a matching field
-        next unless $self->get_field($param);
+        next unless defined $self->get_field($param);
 
         my @values = $query->param($param);
         $params{$param} = @values > 1 ? \@values : $values[0];
     }
-        ### constraints
-        #    my $render = $constraint->render_errors;
-        #    my @render =
-        #          ref $render     ? @{$render}
-        #        : defined $render ? $render
-        #        :                   ();
-        #        $result->no_render(1)
-        #            if @render && !grep { $name eq $_ } @render;
-    
+
+    for my $field ( @{ $self->get_fields } ) {
+        $field->process_input( \%params );
+    }
+
     $self->input( \%params );
-    
+
     $self->_process_input;
-    
+
     return;
 }
 
@@ -211,8 +228,7 @@ sub _submitted {
     elsif ( !defined $indi ) {
         my @names = uniq(
             map      { $_->name }
-                grep { defined $_->name } @{ $self->get_fields }
-        );
+                grep { defined $_->name } @{ $self->get_fields } );
 
         $code = sub {
             grep { defined $query->param($_) } @names;
@@ -229,24 +245,24 @@ sub _process_input {
     my ($self) = @_;
 
     $self->_build_params;
-    
+
     $self->_process_file_uploads;
-    
+
     $self->_filter_input;
-    
+
     $self->_constrain_input;
-    
+
     $self->_inflate_input
         if !@{ $self->get_errors };
-    
+
     $self->_validate_input
         if !@{ $self->get_errors };
-    
+
     $self->_transform_input
         if !@{ $self->get_errors };
-    
+
     $self->_build_valid_names;
-    
+
     return;
 }
 
@@ -255,41 +271,38 @@ sub _build_params {
 
     my $input = $self->input;
     my %params;
-    
+
     my @names = uniq(
         sort
-        map { $_->name }
-        grep { defined $_->name }
-        @{ $self->get_fields }
-        );
-    
+            map  { $_->name }
+            grep { defined $_->name } @{ $self->get_fields } );
+
     for my $name (@names) {
         my $input = exists $input->{$name} ? $input->{$name} : undef;
-        
+
         if ( ref $input eq 'ARRAY' ) {
+
             # can't clone upload filehandles
             # so create new arrayref of values
             $input = [@$input];
         }
-        
+
         $params{$name} = $input;
     }
 
     $self->_processed_params( \%params );
-    
+
     return;
 }
 
 sub _process_file_uploads {
     my ($self) = @_;
-    
+
     my @names = uniq(
         sort
-        map { $_->name }
-        grep { $_->isa('HTML::FormFu::Element::file') }
-        grep { defined $_->name }
-        @{ $self->get_fields }
-        );
+            map  { $_->name }
+            grep { $_->isa('HTML::FormFu::Element::File') }
+            grep { defined $_->name } @{ $self->get_fields } );
 
     if (@names) {
         my $query_class = $self->query_type;
@@ -297,13 +310,13 @@ sub _process_file_uploads {
             $query_class = "HTML::FormFu::QueryType::$query_class";
         }
         require_class($query_class);
-        
+
         my $params = $self->_processed_params;
-    
+
         for my $name (@names) {
-            
+
             my $values = $query_class->parse_uploads( $self, $name );
-            
+
             $params->{$name} = $values;
         }
     }
@@ -314,35 +327,36 @@ sub _process_file_uploads {
 sub _filter_input {
     my ($self) = @_;
 
+    my $params = $self->_processed_params;
+
     for my $filter ( map { @{ $_->get_filters } } @{ $self->_elements } ) {
-        $filter->process( $self, $self->_processed_params );
+        $filter->process( $self, $params );
     }
-    
+
     return;
 }
 
 sub _constrain_input {
     my ($self) = @_;
-    
+
     my $params = $self->_processed_params;
 
-    for my $constraint ( map { @{ $_->get_constraints } } @{ $self->_elements } )
+    for my $constraint ( map { @{ $_->get_constraints } }
+        @{ $self->_elements } )
     {
-        my @errors = eval {
-            $constraint->process( $params );
-            };
+        my @errors = eval { $constraint->process($params); };
         if ( blessed $@ && $@->isa('HTML::FormFu::Exception::Constraint') ) {
             push @errors, $@;
         }
-        elsif ( $@ ) {
+        elsif ($@) {
             push @errors, HTML::FormFu::Exception::Constraint->new;
         }
-        
+
         for my $error (@errors) {
             $error->parent( $constraint->parent ) if !$error->parent;
-            $error->constraint( $constraint )     if !$error->constraint;
-            
-            $error->parent->add_error( $error );
+            $error->constraint($constraint)       if !$error->constraint;
+
+            $error->parent->add_error($error);
         }
     }
 
@@ -353,33 +367,31 @@ sub _inflate_input {
     my ($self) = @_;
 
     for my $name ( keys %{ $self->_processed_params } ) {
-        next if $self->has_errors( $name );
-        
+        next if $self->has_errors($name);
+
         my $value = $self->_processed_params->{$name};
 
         for my $inflator ( map { @{ $_->get_inflators( { name => $name } ) } }
             @{ $self->_elements } )
         {
             my @errors;
-            
-            ( $value, @errors ) = eval {
-                $inflator->process($value);
-                };
+
+            ( $value, @errors ) = eval { $inflator->process($value); };
             if ( blessed $@ && $@->isa('HTML::FormFu::Exception::Inflator') ) {
                 push @errors, $@;
             }
-            elsif ( $@ ) {
+            elsif ($@) {
                 push @errors, HTML::FormFu::Exception::Inflator->new;
             }
-            
+
             for my $error (@errors) {
                 $error->parent( $inflator->parent ) if !$error->parent;
-                $error->inflator( $inflator )       if !$error->inflator;
-                
-                $error->parent->add_error( $error );
+                $error->inflator($inflator)         if !$error->inflator;
+
+                $error->parent->add_error($error);
             }
         }
-        
+
         $self->_processed_params->{$name} = $value;
     }
 
@@ -388,65 +400,66 @@ sub _inflate_input {
 
 sub _validate_input {
     my ($self) = @_;
-    
+
     my $params = $self->_processed_params;
 
     for my $validator ( map { @{ $_->get_validators } } @{ $self->_elements } )
     {
         next if $self->has_errors( $validator->field->name );
-        
-        my @errors = eval {
-            $validator->process( $params );
-            };
+
+        my @errors = eval { $validator->process($params); };
         if ( blessed $@ && $@->isa('HTML::FormFu::Exception::Validator') ) {
             push @errors, $@;
         }
-        elsif ( $@ ) {
+        elsif ($@) {
             push @errors, HTML::FormFu::Exception::Validator->new;
         }
-        
+
         for my $error (@errors) {
             $error->parent( $validator->parent ) if !$error->parent;
-            $error->validator( $validator )     if !$error->validator;
-            
-            $error->parent->add_error( $error );
+            $error->validator($validator)        if !$error->validator;
+
+            $error->parent->add_error($error);
         }
     }
-    
+
     return;
 }
 
 sub _transform_input {
     my ($self) = @_;
 
-    for my $name ( keys %{ $self->_processed_params } ) {
-        my $value = $self->_processed_params->{$name};
+    my $params = $self->_processed_params;
 
-        for my $transformer ( map { @{ $_->get_transformers( { name => $name } ) } }
+    for my $name ( keys %{ $self->_processed_params } ) {
+        my $value = $params->{$name};
+
+        for my $transformer (
+            map { @{ $_->get_transformers( { name => $name } ) } }
             @{ $self->_elements } )
         {
             next if $self->has_errors( $transformer->field->name );
-            
+
             my @errors;
-            
-            ( $value, @errors ) = eval {
-                $transformer->process($value);
-                };
-            if ( blessed $@ && $@->isa('HTML::FormFu::Exception::Transformer') ) {
+
+            ( $value, @errors )
+                = eval { $transformer->process( $value, $params ); };
+            if ( blessed $@ && $@->isa('HTML::FormFu::Exception::Transformer') )
+            {
                 push @errors, $@;
             }
-            elsif ( $@ ) {
+            elsif ($@) {
                 push @errors, HTML::FormFu::Exception::Transformer->new;
             }
-            
+
             for my $error (@errors) {
                 $error->parent( $transformer->parent ) if !$error->parent;
-                $error->transformer( $transformer )    if !$error->transformer;
-                
-                $error->parent->add_error( $error );
+                $error->transformer($transformer)      if !$error->transformer;
+
+                $error->parent->add_error($error);
             }
         }
-        
+
         $self->_processed_params->{$name} = $value;
     }
 
@@ -457,7 +470,7 @@ sub _build_valid_names {
     my ($self) = @_;
 
     my @errors = $self->has_errors;
-    my @names  = keys %{ $self->input };
+    my @names = keys %{ $self->input }, keys %{ $self->_processed_params };
 
     my %valid;
 CHECK: for my $name (@names) {
@@ -475,7 +488,7 @@ CHECK: for my $name (@names) {
 
 sub submitted_and_valid {
     my ($self) = @_;
-    
+
     return $self->submitted && !$self->has_errors;
 }
 
@@ -504,7 +517,7 @@ sub param {
     my $self = shift;
 
     croak 'param method is readonly' if @_ > 1;
-    
+
     return if !$self->submitted;
 
     if ( @_ == 1 ) {
@@ -531,10 +544,10 @@ sub param {
 }
 
 sub valid {
-    my $self  = shift;
-    
+    my $self = shift;
+
     return if !$self->submitted;
-    
+
     my @valid = @{ $self->_valid_names };
 
     if (@_) {
@@ -554,8 +567,7 @@ sub has_errors {
 
     my @names = map { $_->name }
         grep { @{ $_->get_errors } }
-        grep { defined $_->name }
-        @{ $self->get_fields };
+        grep { defined $_->name } @{ $self->get_fields };
 
     if (@_) {
         my $name = shift;
@@ -575,7 +587,7 @@ sub add_valid {
     $self->input->{$key} = $value;
 
     $self->_processed_params->{$key} = $value;
-    
+
     push @{ $self->_valid_names }, $key
         if !grep { $_ eq $key } @{ $self->_valid_names };
 
@@ -603,7 +615,7 @@ sub render {
 
     $render->attributes( xml_escape $self->attributes );
     $render->stash( $self->stash );
-    
+
     return $render;
 }
 
@@ -618,8 +630,8 @@ sub end_form {
 sub hidden_fields {
     my ($self) = @_;
 
-    return join "", map { $_->render } 
-        @{ $self->get_fields( { type => 'hidden' } ) };
+    return join "",
+        map { $_->render } @{ $self->get_fields( { type => 'Hidden' } ) };
 }
 
 1;
@@ -736,6 +748,22 @@ common settings to be kept in a single config file which may be loaded
 by any form.
 
 See L</BEST PRACTICES> for advice on organising config files.
+
+=head2 config_callback
+
+Arguments: \%options
+
+If defined, the arguments are used to create a L<Data::Visitor::Callback> 
+object during L</load_config_file> which may be used to pre-process the 
+config before it is sent to L</populate>
+
+Default Value: not defined
+
+This method is a special 'inherited accessor', which means it can be set on 
+the form, a block element or a single element. When the value is read, if 
+no value is defined it automatically traverses the element's hierarchy of 
+parents, through any block elements and up to the form, searching for a 
+defined value.
 
 =head2 populate
 
@@ -978,7 +1006,7 @@ Return Value: @deflators
 
 A L<deflator|HTML::FormFu::Deflator> may be associated with any form field, 
 and allows you to provide 
-L<< $field->default|HTML:FormFu::Element::field/default >> with a value 
+L<< $field->default|HTML:FormFu::Element::_field/default >> with a value 
 which may be an object.
 
 If an object doesn't stringify to a suitable value for display, the 
@@ -1055,7 +1083,7 @@ Return Value: @filters
 If you provide a C<name> or C<names> value, the filter will be added to 
 just that named field.
 If you do not provide a C<name> or C<names> value, the filter will be added 
-to all L<fields|HTML::FormFu::Element::field> already attached to the form. 
+to all L<fields|HTML::FormFu::Element::_Field> already attached to the form. 
 
 See L<HTML::FormFu::Filter/"CORE FILTERS"> for a list of core filters.
 
@@ -1353,7 +1381,7 @@ defined value.
 Arguments: [$string]
 
 If set, then all form fields will be given an auto-generated 
-L<name|HTML::FormFu::Element::field/label>, if it doesn't have one already.
+L<name|HTML::FormFu::Element::Field/label>, if it doesn't have one already.
 
 The following character substitution will be performed: C<%f> will be 
 replaced by L<< $form->id|/id >>, C<%n> will be replaced by 
@@ -2111,14 +2139,14 @@ L<http://rt.perl.org>.
 The publicly viewable subversion code repository is at 
 L<http://html-formfu.googlecode.com/svn/trunk/HTML-FormFu>.
 
-If you wish to contribute, you'll need a gmail email address. Then just 
-join our mailing list and ask for commit access.
+If you wish to contribute, you'll need a GMAIL email address. Then just 
+ask on the mailing list for commit access.
 
 If you wish to contribute but for some reason really don't want to sign up 
-for a gmail account, please post patches to the mailing list (but then 
+for a GMAIL account, please post patches to the mailing list (although  
 you'll have to wait for someone to commit them). 
 
-If you have commit permissions, please use this repository url: 
+If you have commit permissions, use the HTTPS repository url: 
 L<https://html-formfu.googlecode.com/svn/trunk/HTML-FormFu>
 
 =head1 SEE ALSO
@@ -2134,6 +2162,10 @@ L<DBIx::Class::FormFu>
 =head1 AUTHORS
 
 Carl Franks
+
+=head1 CONTRIBUTORS
+
+Brian Cassidy
 
 Daisuke Maki
 

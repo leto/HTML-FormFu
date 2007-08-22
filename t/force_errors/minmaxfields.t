@@ -7,15 +7,11 @@ use HTML::FormFu;
 
 my $form = HTML::FormFu->new;
 
-$form->element('text')->name('foo')
-    ->constraint('MinMaxFields')
-    ->others(qw/ bar baz boz/)
-    ->min(1)
-    ->max(2)
-    ->force_errors(1);
-$form->element('text')->name('bar');
-$form->element('text')->name('baz');
-$form->element('text')->name('boz');
+$form->element('Text')->name('foo')->constraint('MinMaxFields')
+    ->others(qw/ bar baz boz/)->min(1)->max(2)->force_errors(1);
+$form->element('Text')->name('bar');
+$form->element('Text')->name('baz');
+$form->element('Text')->name('boz');
 
 {
     $form->process( {
@@ -26,13 +22,13 @@ $form->element('text')->name('boz');
         } );
 
     ok( !$form->has_errors, 'no real errors' );
-    
+
     ok( !$form->has_errors('foo') );
     ok( !$form->has_errors('bar') );
     ok( !$form->has_errors('baz') );
     ok( !$form->has_errors('boz') );
-    
-    ok( $form->get_errors({ name => 'foo', forced => 1 }) );
+
+    ok( $form->get_errors( { name => 'foo', forced => 1 } ) );
 }
 
 {
@@ -44,13 +40,13 @@ $form->element('text')->name('boz');
         } );
 
     ok( !$form->has_errors, 'no real errors' );
-    
+
     ok( !$form->has_errors('foo') );
     ok( !$form->has_errors('bar') );
     ok( !$form->has_errors('baz') );
     ok( !$form->has_errors('boz') );
-    
-    ok( $form->get_errors({ name => 'foo', forced => 1 }) );
+
+    ok( $form->get_errors( { name => 'foo', forced => 1 } ) );
 }
 
 {
@@ -62,7 +58,7 @@ $form->element('text')->name('boz');
         } );
 
     ok( $form->has_errors );
-    
+
     ok( $form->has_errors('foo') );
     ok( !$form->has_errors('bar') );
     ok( !$form->has_errors('baz') );

@@ -7,14 +7,14 @@ use HTML::FormFu;
 
 my $form = HTML::FormFu->new;
 
-$form->element('text')->name('foo');
-$form->element('text')->name('bar');
-$form->element('text')->name('bif')->constraint('Number');
+$form->element('Text')->name('foo');
+$form->element('Text')->name('bar');
+$form->element('Text')->name('bif')->constraint('Number');
 
-$form->filter({
-    type => 'HTMLEscape',
-    names => [qw/ bar bif /],
-    });
+$form->filter( {
+        type  => 'HTMLEscape',
+        names => [qw/ bar bif /],
+    } );
 
 my $original_foo = qq{escape "this"};
 

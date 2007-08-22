@@ -3,13 +3,15 @@ package HTML::FormFu::Constraint::AutoSet;
 use strict;
 use warnings;
 use base 'HTML::FormFu::Constraint::Set';
+use Class::C3;
 
 sub process {
     my $self = shift;
-    
-    $self->set( map { $_->{value} } @{ $self->parent->_options } );
-    
-    return $self->SUPER::process(@_);
+
+    my @set = map { $_->{value} } @{ $self->parent->_options };
+    $self->set( \@set );
+
+    return $self->next::method(@_);
 }
 
 1;
@@ -22,8 +24,8 @@ HTML::FormFu::Constraint::AutoSet
 
 =head1 DESCRIPTION
 
-For use with L<HTML::FormFu::Element::radiogroup> and 
-L<HTML::FormFu::Element::select> only.
+For use with L<HTML::FormFu::Element::Radiogroup> and 
+L<HTML::FormFu::Element::Select> only.
 
 Ensures that the input value is one of the pre-defined element options.
 

@@ -7,11 +7,11 @@ use HTML::FormFu;
 
 my $form = HTML::FormFu->new;
 
-$form->element('text')->name('foo')->constraint('Email');
+$form->element('Text')->name('foo')->constraint('Email');
 
 # Valid
 {
-    $form->process({ foo => 'cfranks@cpan.org', } );
+    $form->process( { foo => 'cfranks@cpan.org', } );
 
     ok( $form->valid('foo'), 'foo valid' );
 }

@@ -46,26 +46,27 @@ my $q;
 {
     my $file = 't/elements/file_post.txt';
     local *STDIN;
-    open STDIN, "<", $file
+    open STDIN,
+        "<", $file
         or die "missing test file $file";
     binmode STDIN;
-    
+
     no warnings;
     $CGI::Simple::DISABLE_UPLOADS = 0;
-    
+
     $q = CGI::Simple->new;
 }
 
 my $form = HTML::FormFu->new( {
         action   => 'http://www.perl.org/test.cgi',
         elements => [
-            { type => 'text', name => 'multiple' },
-            { type => 'file', name => 'multiple' },
-            { type => 'file', name => 'multiple' },
-            { type => 'file', name => 'hello_world' },
-            { type => 'file', name => 'does_not_exist_gif' },
-            { type => 'file', name => '100x100_gif' },
-            { type => 'file', name => '300x300_gif' },
+            { type => 'Text', name => 'multiple' },
+            { type => 'File', name => 'multiple' },
+            { type => 'File', name => 'multiple' },
+            { type => 'File', name => 'hello_world' },
+            { type => 'File', name => 'does_not_exist_gif' },
+            { type => 'File', name => '100x100_gif' },
+            { type => 'File', name => '300x300_gif' },
         ],
         query_type => 'CGI::Simple',
     } );
@@ -76,32 +77,32 @@ $form->process($q);
     my $multiple = $form->params->{multiple};
 
     is( @$multiple, 3 );
-    
+
     my ( $m1, $m2, $m3 ) = @$multiple;
 
     ok( !ref $m1 );
     is( $m1, 'foo' );
 
     isa_ok( $m2, 'HTML::FormFu::Upload' );
-    is( $m2->filename, 'one.txt' );
+    is( $m2->filename,                    'one.txt' );
     is( $m2->headers->{'Content-Length'}, 4 );
-    is( $m2->headers->{'Content-Type'}, 'text/plain' );
-    is( $m2->slurp, "One\n" );
-    
+    is( $m2->headers->{'Content-Type'},   'text/plain' );
+    is( $m2->slurp,                       "One\n" );
+
     isa_ok( $m3, 'HTML::FormFu::Upload' );
-    is( $m3->filename, 'two.txt' );
+    is( $m3->filename,                    'two.txt' );
     is( $m3->headers->{'Content-Length'}, 5 );
-    is( $m3->headers->{'Content-Type'}, 'text/plain' );
-    is( $m3->slurp, "Two!\n" );
+    is( $m3->headers->{'Content-Type'},   'text/plain' );
+    is( $m3->slurp,                       "Two!\n" );
 }
 
 {
     my $value = $form->params->{hello_world};
-    
+
     isa_ok( $value, 'HTML::FormFu::Upload' );
-    is( $value->filename, 'hello_world.txt' );
+    is( $value->filename,                    'hello_world.txt' );
     is( $value->headers->{'Content-Length'}, 13 );
-    is( $value->headers->{'Content-Type'}, 'text/plain' );
-    is( $value->slurp, "Hello World!\n" );
+    is( $value->headers->{'Content-Type'},   'text/plain' );
+    is( $value->slurp,                       "Hello World!\n" );
 }
 

@@ -9,7 +9,7 @@ my $form = HTML::FormFu->new;
 
 $form->form_error_message_loc('form_error_message');
 
-my $field = $form->element('text');
+my $field = $form->element('Text');
 
 $field->name('foo');
 
@@ -17,15 +17,11 @@ $field->constraint('Number');
 
 unlike( "$form", qr/there were errors/i );
 
-$form->process( {
-        foo => '1',
-    } );
+$form->process( { foo => '1', } );
 
 unlike( "$form", qr/there were errors/i );
 
-$form->process( {
-        foo => 'a',
-    } );
+$form->process( { foo => 'a', } );
 
 my $xhtml = <<EOF;
 <form action="" method="post">

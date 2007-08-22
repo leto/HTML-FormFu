@@ -7,9 +7,10 @@ use HTML::FormFu;
 
 my $form = HTML::FormFu->new;
 
-$form->element('text')->name('foo')->constraint('DependOn')->others(qw/ bar baz /)->force_errors(1);
-$form->element('text')->name('bar');
-$form->element('text')->name('baz');
+$form->element('Text')->name('foo')->constraint('DependOn')
+    ->others(qw/ bar baz /)->force_errors(1);
+$form->element('Text')->name('bar');
+$form->element('Text')->name('baz');
 
 {
     $form->process( {
@@ -21,9 +22,9 @@ $form->element('text')->name('baz');
     ok( !$form->has_errors('foo') );
     ok( !$form->has_errors('bar') );
     ok( !$form->has_errors('baz') );
-    
-    ok( $form->get_errors({ name => 'bar', forced => 1 }) );
-    ok( $form->get_errors({ name => 'baz', forced => 1 }) );
+
+    ok( $form->get_errors( { name => 'bar', forced => 1 } ) );
+    ok( $form->get_errors( { name => 'baz', forced => 1 } ) );
 }
 
 {
@@ -36,6 +37,6 @@ $form->element('text')->name('baz');
     ok( !$form->has_errors('foo') );
     ok( $form->has_errors('bar') );
     ok( !$form->has_errors('baz') );
-    
-    ok( $form->get_errors({ name => 'bar', forced => 1 }) );
+
+    ok( $form->get_errors( { name => 'bar', forced => 1 } ) );
 }

@@ -3,8 +3,10 @@ package HTML::FormFu::Element;
 use strict;
 use warnings;
 use base 'Class::Accessor::Chained::Fast';
+use Class::C3;
 
-use HTML::FormFu::Accessor qw( mk_output_accessors mk_inherited_accessors );
+use HTML::FormFu::Accessor qw( mk_output_accessors mk_inherited_accessors
+    mk_inherited_merging_accessors );
 use HTML::FormFu::Attribute qw/ mk_attrs mk_attr_accessors /;
 use HTML::FormFu::ObjectUtil qw/ load_config_file _render_class
     populate form stash /;
@@ -16,20 +18,26 @@ use Carp qw/ croak /;
 use overload
     'eq' => sub { refaddr $_[0] eq refaddr $_[1] },
     '==' => sub { refaddr $_[0] eq refaddr $_[1] },
-    '""' => sub { return shift->render },
-    bool => sub {1};
+    '""'     => sub { return shift->render },
+    bool     => sub {1},
+    fallback => 1;
 
 __PACKAGE__->mk_attrs(qw/ attributes /);
 
 __PACKAGE__->mk_attr_accessors(qw/ id /);
 
-__PACKAGE__->mk_accessors(qw/
-    parent name type filename multi_filename is_field 
-    render_class_suffix /);
+__PACKAGE__->mk_accessors(
+    qw/
+        parent name type filename multi_filename is_field
+        render_class_suffix /
+);
 
 __PACKAGE__->mk_inherited_accessors(
-    qw/ render_class render_class_prefix render_class_args 
-    render_method /);
+    qw/ render_class render_class_prefix render_class_args
+        render_method /
+);
+
+__PACKAGE__->mk_inherited_merging_accessors(qw/ config_callback /);
 
 sub new {
     my $class = shift;
@@ -41,7 +49,7 @@ sub new {
     my $self = bless {}, $class;
 
     $self->attributes( {} );
-    $self->stash( {} );
+    $self->stash(      {} );
 
     $self->populate( \%attrs );
 
@@ -97,18 +105,17 @@ sub prepare_id { }
 sub prepare_attrs { }
 
 sub clone {
-    my ( $self ) = @_;
-    
+    my ($self) = @_;
+
     my %new = %$self;
-    
+
     $new{render_class_args} = dclone $self->{render_class_args}
         if $self->{render_class_args};
-    
+
     $new{attributes} = dclone $self->attributes;
-    
+
     return bless \%new, ref $self;
 }
-
 
 sub render {
     my $self = shift;
@@ -116,25 +123,24 @@ sub render {
     my $class = $self->_render_class('Element');
     require_class($class);
 
-    my $render = $class->new({
-        name                => xml_escape( $self->name ),
-        attributes          => xml_escape( $self->attributes ),
-        render_class_args   => dclone( $self->render_class_args ),
-        type        => $self->type,
-        render_class_suffix => $self->render_class_suffix,
-        render_method       => $self->render_method,
-        filename            => $self->filename,
-        multi_filename      => $self->multi_filename,
-        is_field            => $self->is_field,
-        stash               => $self->stash,
-        parent              => $self,
-        @_ ? %{$_[0]} : ()
-        });
-    
+    my $render = $class->new( {
+            name                => xml_escape( $self->name ),
+            attributes          => xml_escape( $self->attributes ),
+            render_class_args   => dclone( $self->render_class_args ),
+            type                => $self->type,
+            render_class_suffix => $self->render_class_suffix,
+            render_method       => $self->render_method,
+            filename            => $self->filename,
+            multi_filename      => $self->multi_filename,
+            is_field            => $self->is_field,
+            stash               => $self->stash,
+            parent              => $self,
+            @_ ? %{ $_[0] } : () } );
+
     $self->prepare_id($render);
-    
+
     $self->prepare_attrs($render);
-    
+
     return $render;
 }
 
@@ -190,7 +196,7 @@ L<Transformers|HTML::FormFu::Transformer>.
 
 =head2 name
 
-For L<field|HTML::FormFu::Element::field> element, this value is used as 
+For L<field|HTML::FormFu::Element::_Field> element, this value is used as 
 the C<name> attribute which the field's value is associated with.
 
 For all elements, the L</name> value can be useful for identifying and 
@@ -210,6 +216,10 @@ This is used by L<HTML::FormFu/get_fields>.
 =head2 load_config_file
 
 See L<HTML::FormFu/load_config_file> for details.
+
+=head2 config_callback
+
+See L<HTML::FormFu/config_callback> for details.
 
 =head2 populate
 
@@ -316,7 +326,7 @@ L<HTML::FormFu::Render::base/xhtml> to render the element.
 
 This value identifies which template file should be used to render the 
 element when the element is within a 
-L<multi element|HTML::FormFu::Element::multi>.
+L<multi element|HTML::FormFu::Element::Multi>.
 
 This value is generally either C<multi_ltr> or C<multi_rtl> depending on 
 whether the field and label should be displayed from left-to-right or 
@@ -326,13 +336,13 @@ right-to-left.
 
 Arguments: $render
 
-See L<HTML::FormFu::Element::field/prepare_id> for details.
+See L<HTML::FormFu::Element::_Field/prepare_id> for details.
 
 =head2 prepare_attrs
 
 Arguments: $render
 
-See L<HTML::FormFu::Element::field/prepare_attrs> for details.
+See L<HTML::FormFu::Element::_Field/prepare_attrs> for details.
 
 =head2 render
 
@@ -388,33 +398,35 @@ See L<HTML::FormFu/render_method> for details.
 
 =over
 
-=item L<HTML::FormFu::Element::button>
+=item L<HTML::FormFu::Element::Button>
 
-=item L<HTML::FormFu::Element::checkbox>
+=item L<HTML::FormFu::Element::Checkbox>
 
-=item L<HTML::FormFu::Element::content_button>
+=item L<HTML::FormFu::Element::ContentButton>
 
-=item L<HTML::FormFu::Element::file>
+=item L<HTML::FormFu::Element::Date>
 
-=item L<HTML::FormFu::Element::hidden>
+=item L<HTML::FormFu::Element::File>
 
-=item L<HTML::FormFu::Element::image>
+=item L<HTML::FormFu::Element::Hidden>
 
-=item L<HTML::FormFu::Element::password>
+=item L<HTML::FormFu::Element::Image>
 
-=item L<HTML::FormFu::Element::radiogroup>
+=item L<HTML::FormFu::Element::Password>
 
-=item L<HTML::FormFu::Element::radio>
+=item L<HTML::FormFu::Element::Radiogroup>
 
-=item L<HTML::FormFu::Element::reset>
+=item L<HTML::FormFu::Element::Radio>
 
-=item L<HTML::FormFu::Element::select>
+=item L<HTML::FormFu::Element::Reset>
 
-=item L<HTML::FormFu::Element::submit>
+=item L<HTML::FormFu::Element::Select>
 
-=item L<HTML::FormFu::Element::textarea>
+=item L<HTML::FormFu::Element::Submit>
 
-=item L<HTML::FormFu::Element::text>
+=item L<HTML::FormFu::Element::Textarea>
+
+=item L<HTML::FormFu::Element::Text>
 
 =back
 
@@ -422,34 +434,36 @@ See L<HTML::FormFu/render_method> for details.
 
 =over
 
-=item L<HTML::FormFu::Element::blank>
+=item L<HTML::FormFu::Element::Blank>
 
-=item L<HTML::FormFu::Element::block>
+=item L<HTML::FormFu::Element::Block>
 
-=item L<HTML::FormFu::Element::fieldset>
+=item L<HTML::FormFu::Element::Fieldset>
 
-=item L<HTML::FormFu::Element::hr>
+=item L<HTML::FormFu::Element::Hr>
 
-=item L<HTML::FormFu::Element::multi>
+=item L<HTML::FormFu::Element::Multi>
 
-=item L<HTML::FormFu::Element::non_block>
+=item L<HTML::FormFu::Element::SimpleTable>
 
-=item L<HTML::FormFu::Element::simple_table>
+=item L<HTML::FormFu::Element::Src>
 
 =back
 
 =head1 ELEMENT BASE CLASSES
 
-The following are base classes for other elements, and shouldn't be used 
-directly.
+The following are base classes for other elements, and generally needn't be 
+used directly.
 
 =over
 
-=item L<HTML::FormFu::Element::field>
+=item L<HTML::FormFu::Element::_Field>
 
-=item L<HTML::FormFu::Element::group>
+=item L<HTML::FormFu::Element::_Group>
 
-=item L<HTML::FormFu::Element::input>
+=item L<HTML::FormFu::Element::_Input>
+
+=item L<HTML::FormFu::Element::NonBlock>
 
 =back
 

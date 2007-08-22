@@ -7,9 +7,10 @@ use HTML::FormFu;
 
 my $form = HTML::FormFu->new;
 
-$form->element('text')->name('foo')->constraint('Equal')->others( 'bar', 'baz' );
-$form->element('text')->name('bar');
-$form->element('text')->name('baz');
+$form->element('Text')->name('foo')->constraint('Equal')
+    ->others( 'bar', 'baz' );
+$form->element('Text')->name('bar');
+$form->element('Text')->name('baz');
 
 # Valid
 {
@@ -57,7 +58,7 @@ $form->element('text')->name('baz');
             bar => 'yada',
             baz => 'x',
         } );
-    
+
     ok( $form->valid('foo'),  'foo valid' );
     ok( $form->valid('bar'),  'bar valid' );
     ok( !$form->valid('baz'), 'baz not valid' );

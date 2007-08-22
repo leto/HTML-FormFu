@@ -4,8 +4,6 @@ use strict;
 use warnings;
 use base 'HTML::FormFu::Constraint';
 
-use Scalar::Util qw/ blessed /;
-
 __PACKAGE__->mk_accessors(qw/ callback /);
 
 sub process {
@@ -16,15 +14,13 @@ sub process {
     my $value = $params->{$name};
 
     my $callback = $self->callback || sub {1};
-    
-    my $ok = eval {
-        $callback->( $value, $params );
-        };
 
-    return $self->mk_errors({
-        pass    => ( $@ or !$ok ) ? 0 : 1,
-        message => $@,
-    });
+    my $ok = eval { $callback->( $value, $params ); };
+
+    return $self->mk_errors( {
+            pass => ( $@ or !$ok ) ? 0 : 1,
+            message => $@,
+        } );
 }
 
 1;

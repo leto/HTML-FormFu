@@ -7,20 +7,21 @@ use base 'Class::Accessor::Chained::Fast';
 use HTML::FormFu::Attribute qw/ mk_attrs mk_attr_accessors /;
 use HTML::FormFu::ObjectUtil qw/ form stash /;
 use HTML::FormFu::Util qw/ _parse_args _get_elements process_attrs /;
-use Template;
+use Scalar::Util qw/ refaddr /;
 use Carp qw/ croak /;
 
 use overload
     'eq' => sub { refaddr $_[0] eq refaddr $_[1] },
     '==' => sub { refaddr $_[0] eq refaddr $_[1] },
-    '""' => sub { return shift->output },
-    bool => sub {1};
+    '""'     => sub { return shift->output },
+    bool     => sub {1},
+    fallback => 1;
 
 __PACKAGE__->mk_attrs(qw/ attributes /);
 
 __PACKAGE__->mk_accessors(
     qw/ render_class_args render_class_suffix render_method
-        filename _elements parent /
+        filename _elements parent template_alloy /
 );
 
 sub new {
@@ -84,12 +85,18 @@ sub xhtml {
 
     my %args = %{ $self->render_class_args };
 
-    $args{INCLUDE_PATH} = 'root' if !keys %args;
+    my $alloy = delete $args{TEMPLATE_ALLOY};
+    $alloy = 1 if $ENV{HTML_FORMFU_TEMPLATE_ALLOY};
+    require( $alloy ? 'Template/Alloy.pm' : 'Template.pm' );
+
+    $args{INCLUDE_PATH} = 'root'  if !keys %args;
+    $args{ENCODING}     = 'UTF-8' if !exists $args{ENCODING};
 
     $args{RELATIVE}  = 1;
     $args{RECURSION} = 1;
 
-    my $template = Template->new( \%args );
+    my $package = $alloy ? 'Template::Alloy' : 'Template';
+    my $template = $package->new( \%args );
 
     my $output;
     my %vars = (

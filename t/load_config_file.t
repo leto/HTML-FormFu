@@ -7,27 +7,25 @@ use HTML::FormFu;
 
 my $form = HTML::FormFu->new->action('/foo/bar')->id('form');
 
-my $fs = $form->element('fieldset')->legend('Jimi');
+my $fs = $form->element('Fieldset')->legend('Jimi');
 
-$fs->element('text')->name('age')->label('Age')->comment('x')->constraints( [
-    {
-        type => 'Integer',
-        message => 'No integer.',
-    },
-    {
-        type => 'Integer',
-        message => 'This too!',
-    },
+$fs->element('Text')->name('age')->label('Age')->comment('x')->constraints( [ {
+            type    => 'Integer',
+            message => 'No integer.',
+        },
+        {   type    => 'Integer',
+            message => 'This too!',
+        },
     ] );
 
-$fs->element('text')->name('name')->label('Name');
-$fs->element('hidden')->name('ok')->value('OK');
+$fs->element('Text')->name('name')->label('Name');
+$fs->element('Hidden')->name('ok')->value('OK');
 
-$fs->constraint({
-    type => 'Required',
-    names => [qw/ age name /],
-    message => 'Missing value.',
-    });
+$fs->constraint( {
+        type    => 'Required',
+        names   => [qw/ age name /],
+        message => 'Missing value.',
+    } );
 
 $fs->filter('HTMLEscape');
 

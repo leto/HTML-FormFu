@@ -1,14 +1,14 @@
 use strict;
 use warnings;
 
-use Test::More tests => 10;
+use Test::More tests => 8;
 
 use HTML::FormFu;
 
 my $form = HTML::FormFu->new;
 
-ok( $form->element('text')->name('foo') );
-ok( my $blank = $form->element('blank')->name('bar') );
+$form->element('Text')->name('foo');
+$form->element('Blank')->name('bar');
 
 is( $form->get_field('bar'), "" );
 
