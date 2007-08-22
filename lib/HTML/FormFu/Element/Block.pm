@@ -5,16 +5,15 @@ use warnings;
 use base 'HTML::FormFu::Element';
 use Class::C3;
 
-use HTML::FormFu::Accessor qw/ mk_output_accessors /;
 use HTML::FormFu::Attribute qw/
     mk_add_methods mk_single_methods mk_require_methods mk_get_methods
-    mk_get_one_methods /;
+    mk_get_one_methods mk_output_accessors /;
 use HTML::FormFu::ObjectUtil qw/
     _single_element _require_constraint
     get_fields get_field get_errors get_error clear_errors
     get_elements get_element get_all_elements get_all_element insert_before
     insert_after /;
-use HTML::FormFu::Util qw/ _parse_args _get_elements xml_escape /;
+use HTML::FormFu::Util qw/ _get_elements xml_escape /;
 use Storable qw( dclone );
 use Carp qw/croak/;
 

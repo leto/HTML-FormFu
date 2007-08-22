@@ -1,14 +1,13 @@
 package HTML::FormFu;
-use 5.8.1;
 use strict;
 use warnings;
 use base 'Class::Accessor::Chained::Fast';
 
-use HTML::FormFu::Accessor qw/ mk_inherited_accessors mk_output_accessors
-    mk_inherited_merging_accessors /;
 use HTML::FormFu::Attribute qw/
     mk_attrs mk_attr_accessors mk_add_methods mk_single_methods
-    mk_require_methods mk_get_methods mk_get_one_methods /;
+    mk_require_methods mk_get_methods mk_get_one_methods 
+    mk_inherited_accessors mk_output_accessors
+    mk_inherited_merging_accessors /;
 use HTML::FormFu::Constraint;
 use HTML::FormFu::Exception;
 use HTML::FormFu::FakeQuery;
@@ -21,7 +20,7 @@ use HTML::FormFu::ObjectUtil qw/
     get_fields get_field get_errors get_error clear_errors
     populate load_config_file insert_before insert_after form
     _render_class clone stash constraints_from_dbic /;
-use HTML::FormFu::Util qw/ _parse_args require_class _get_elements xml_escape /;
+use HTML::FormFu::Util qw/ require_class _get_elements xml_escape /;
 use List::MoreUtils qw/ uniq /;
 use Scalar::Util qw/ blessed refaddr weaken /;
 use Storable qw/ dclone /;
@@ -96,7 +95,7 @@ __PACKAGE__->mk_get_one_methods(
 *transformers = \&transformer;
 *loc          = \&localize;
 
-our $VERSION = '0.01001';
+our $VERSION = '0.01002';
 $VERSION = eval $VERSION;
 
 Class::C3::initialize();
