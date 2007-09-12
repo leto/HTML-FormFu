@@ -1,11 +1,10 @@
 package HTML::FormFu::Processor;
 
 use strict;
-use base 'Class::Accessor::Chained::Fast';
 use Class::C3;
 
-use HTML::FormFu::Attribute qw( mk_output_accessors );
-use HTML::FormFu::ObjectUtil qw( populate form name );
+use HTML::FormFu::Attribute qw( mk_accessors mk_output_accessors );
+use HTML::FormFu::ObjectUtil qw( populate form name parent );
 use Scalar::Util qw/ refaddr /;
 use Carp qw/ croak /;
 
@@ -15,7 +14,7 @@ use overload
     bool => sub {1},
     fallback => 1;
 
-__PACKAGE__->mk_accessors(qw/ type parent localize_args /);
+__PACKAGE__->mk_accessors(qw/ type localize_args /);
 
 __PACKAGE__->mk_output_accessors(qw/ message /);
 
@@ -32,6 +31,10 @@ sub new {
 
     for (qw/ type /) {
         croak "$_ attribute required" if !exists $attrs{$_};
+    }
+    
+    if ( exists $attrs{parent} ) {
+        $self->parent( delete $attrs{parent} );
     }
 
     $self->populate( \%attrs );

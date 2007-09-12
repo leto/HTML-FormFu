@@ -1,4 +1,12 @@
+bin/html_formfu_deploy.pl
 Changes
+examples/vertically-aligned/test.jpg
+examples/vertically-aligned/vertically-aligned-ie.css
+examples/vertically-aligned/vertically-aligned.css
+examples/vertically-aligned/vertically-aligned.html
+examples/vertically-aligned/vertically-aligned.pl
+examples/vertically-aligned/vertically-aligned.tt
+examples/vertically-aligned/vertically-aligned.yml
 inc/Module/AutoInstall.pm
 inc/Module/Install.pm
 inc/Module/Install/AutoInstall.pm
@@ -8,6 +16,7 @@ inc/Module/Install/Fetch.pm
 inc/Module/Install/Include.pm
 inc/Module/Install/Makefile.pm
 inc/Module/Install/Metadata.pm
+inc/Module/Install/Scripts.pm
 inc/Module/Install/Win32.pm
 inc/Module/Install/WriteAll.pm
 lib/HTML/FormFu.pm
@@ -144,6 +153,8 @@ t/04basic.t
 t/04basic.yml
 t/block_insert_after.t
 t/block_insert_before.t
+t/bugs/circular_reference.t
+t/bugs/circular_reference.yml
 t/bugs/constructor_arg_overwrites_default.t
 t/bugs/date_element_empty_input.t
 t/bugs/element_class.t
@@ -164,6 +175,7 @@ t/constraint.t
 t/constraints/allornone.t
 t/constraints/ascii.t
 t/constraints/autoset.t
+t/constraints/autoset_group.t
 t/constraints/bool.t
 t/constraints/callback.t
 t/constraints/callbackonce.t

@@ -280,8 +280,6 @@ sub _build_year_name {
 sub _add_inflator {
     my ($self) = @_;
 
-    $self->_inflators( [] );
-
     $self->inflator( {
             type     => "DateTime",
             parser   => { strptime => $self->strftime, },
@@ -339,7 +337,7 @@ sub render {
 
     $self->_add_elements;
 
-    my $render = $self->next::method( { @_ ? %{ $_[0] } : () } );
+    my $render = $self->next::method(@_);
 
     return $render;
 }
@@ -356,7 +354,7 @@ HTML::FormFu::Element::Date - 3 select menu multi-field
 
     ---
     elements:
-      - type: date
+      - type: Date
         name: foo
         auto_inflate: 1
 

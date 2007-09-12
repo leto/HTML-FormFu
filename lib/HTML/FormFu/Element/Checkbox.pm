@@ -52,7 +52,7 @@ sub prepare_attrs {
     elsif ($submitted) {
         delete $render->attributes->{checked};
     }
-    elsif ( defined $default && $default eq $original ) {
+    elsif ( defined $default && defined $original && $default eq $original ) {
         $render->attributes( 'checked', 'checked' );
     }
 
@@ -71,7 +71,7 @@ HTML::FormFu::Element::Checkbox - Checkbox form field
 
 =head1 SYNOPSIS
 
-    my $e = $form->element( checkbox => 'foo' );
+    my $e = $form->element( Checkbox => 'foo' );
 
 =head1 DESCRIPTION
 

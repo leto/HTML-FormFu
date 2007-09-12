@@ -96,7 +96,7 @@ sub render {
 
     $copy->_add_headers;
 
-    my $render = $copy->next::method( { @_ ? %{ $_[0] } : () } );
+    my $render = $copy->next::method(@_);
 
     append_xml_attribute( $render->attributes, 'class', lc $self->type );
 
@@ -117,20 +117,20 @@ The following is yaml markup for a table consisting of a header row
 containing 2 C<th> cells, and a further 2 rows, each containing 2 C<td> 
 cells. 
 
-    type: simple_table
+    type: SimpleTable
     headers: 
       - One
       - Two
     rows: 
       - 
-        - type: input
+        - type: Input
           name: one_a
-        - type: input
+        - type: Input
           name: two_a
       - 
-        - type: input
+        - type: Input
           name: one_b
-        - type: input
+        - type: Input
           name: two_b
 
 =head1 DESCRIPTION

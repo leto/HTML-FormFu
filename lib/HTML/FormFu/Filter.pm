@@ -1,13 +1,13 @@
 package HTML::FormFu::Filter;
 
 use strict;
-use base 'Class::Accessor::Chained::Fast';
 use Class::C3;
 
-use HTML::FormFu::ObjectUtil qw( populate form name );
+use HTML::FormFu::Attribute qw( mk_accessors );
+use HTML::FormFu::ObjectUtil qw( populate form name parent );
 use Carp qw( croak );
 
-__PACKAGE__->mk_accessors(qw/ parent type localize_args /);
+__PACKAGE__->mk_accessors(qw/ type localize_args /);
 
 sub new {
     my $class = shift;
@@ -17,6 +17,10 @@ sub new {
     croak "attributes argument must be a hashref" if $@;
 
     my $self = bless {}, $class;
+    
+    if ( exists $attrs{parent} ) {
+        $self->parent( delete $attrs{parent} );
+    }
 
     $self->populate( \%attrs );
 
@@ -62,14 +66,14 @@ HTML::FormFu::Filter - Filter Base Class
 
     ---
     elements: 
-      - type: text
+      - type: Text
         name: foo
         filters:
           - type: Encode
             candidates:
               - utf8
               - Hebrew
-      - type: text
+      - type: Text
         name: bar
         filters: 
           - LowerCase
@@ -121,6 +125,8 @@ Shorthand for C<< $filter->parent->name >>
 =over
 
 =item L<HTML::FormFu::Filter::Callback>
+
+=item L<HTML::FormFu::Filter::Default>
 
 =item L<HTML::FormFu::Filter::Encode>
 

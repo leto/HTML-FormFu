@@ -1,12 +1,11 @@
 package HTML::FormFu;
 use strict;
-use base 'Class::Accessor::Chained::Fast';
 
 use HTML::FormFu::Attribute qw/
     mk_attrs mk_attr_accessors mk_add_methods mk_single_methods
     mk_require_methods mk_get_methods mk_get_one_methods 
     mk_inherited_accessors mk_output_accessors
-    mk_inherited_merging_accessors /;
+    mk_inherited_merging_accessors mk_accessors /;
 use HTML::FormFu::Constraint;
 use HTML::FormFu::Exception;
 use HTML::FormFu::FakeQuery;
@@ -18,7 +17,7 @@ use HTML::FormFu::ObjectUtil qw/
     get_elements get_element get_all_elements get_all_element
     get_fields get_field get_errors get_error clear_errors
     populate load_config_file insert_before insert_after form
-    _render_class clone stash constraints_from_dbic /;
+    _render_class clone stash constraints_from_dbic parent /;
 use HTML::FormFu::Util qw/ require_class _get_elements xml_escape /;
 use List::MoreUtils qw/ uniq /;
 use Scalar::Util qw/ blessed refaddr weaken /;
@@ -38,8 +37,7 @@ __PACKAGE__->mk_attrs(qw/ attributes /);
 __PACKAGE__->mk_attr_accessors(qw/ id action enctype method /);
 
 __PACKAGE__->mk_accessors(
-    qw/ parent
-        indicator filename javascript javascript_src
+    qw/ indicator filename javascript javascript_src
         element_defaults query_type languages force_error_message
         localize_class submitted query input _auto_fieldset
         _elements _processed_params _valid_names
@@ -94,7 +92,7 @@ __PACKAGE__->mk_get_one_methods(
 *transformers = \&transformer;
 *loc          = \&localize;
 
-our $VERSION = '0.01003';
+our $VERSION = '0.01004';
 $VERSION = eval $VERSION;
 
 Class::C3::initialize();
@@ -276,6 +274,8 @@ sub _build_params {
             grep { defined $_->name } @{ $self->get_fields } );
 
     for my $name (@names) {
+        next if !exists $input->{$name};
+        
         my $input = exists $input->{$name} ? $input->{$name} : undef;
 
         if ( ref $input eq 'ARRAY' ) {
@@ -310,8 +310,10 @@ sub _process_file_uploads {
         require_class($query_class);
 
         my $params = $self->_processed_params;
+        my $input  = $self->input;
 
         for my $name (@names) {
+            next if !exists $input->{$name};
 
             my $values = $query_class->parse_uploads( $self, $name );
 
@@ -327,8 +329,12 @@ sub _filter_input {
 
     my $params = $self->_processed_params;
 
-    for my $filter ( map { @{ $_->get_filters } } @{ $self->_elements } ) {
-        $filter->process( $self, $params );
+    for my $name ( keys %$params ) {
+        next if !exists $self->input->{$name};
+        
+        for my $filter ( @{ $self->get_filters({ name => $name }) } ) {
+            $filter->process( $self, $params );
+        }
     }
 
     return;
@@ -338,11 +344,11 @@ sub _constrain_input {
     my ($self) = @_;
 
     my $params = $self->_processed_params;
-
-    for my $constraint ( map { @{ $_->get_constraints } }
-        @{ $self->_elements } )
-    {
+    
+    for my $constraint ( @{ $self->get_constraints } ) {
+        
         my @errors = eval { $constraint->process($params); };
+        
         if ( blessed $@ && $@->isa('HTML::FormFu::Exception::Constraint') ) {
             push @errors, $@;
         }
@@ -364,14 +370,16 @@ sub _constrain_input {
 sub _inflate_input {
     my ($self) = @_;
 
-    for my $name ( keys %{ $self->_processed_params } ) {
+    my $params = $self->_processed_params;
+
+    for my $name ( keys %$params ) {
+        next if !exists $self->input->{$name};
+        
         next if $self->has_errors($name);
 
-        my $value = $self->_processed_params->{$name};
+        my $value = $params->{$name};
 
-        for my $inflator ( map { @{ $_->get_inflators( { name => $name } ) } }
-            @{ $self->_elements } )
-        {
+        for my $inflator ( @{ $self->get_inflators({ name => $name }) } ) {
             my @errors;
 
             ( $value, @errors ) = eval { $inflator->process($value); };
@@ -390,7 +398,7 @@ sub _inflate_input {
             }
         }
 
-        $self->_processed_params->{$name} = $value;
+        $params->{$name} = $value;
     }
 
     return;
@@ -401,23 +409,26 @@ sub _validate_input {
 
     my $params = $self->_processed_params;
 
-    for my $validator ( map { @{ $_->get_validators } } @{ $self->_elements } )
-    {
-        next if $self->has_errors( $validator->field->name );
-
-        my @errors = eval { $validator->process($params); };
-        if ( blessed $@ && $@->isa('HTML::FormFu::Exception::Validator') ) {
-            push @errors, $@;
-        }
-        elsif ($@) {
-            push @errors, HTML::FormFu::Exception::Validator->new;
-        }
-
-        for my $error (@errors) {
-            $error->parent( $validator->parent ) if !$error->parent;
-            $error->validator($validator)        if !$error->validator;
-
-            $error->parent->add_error($error);
+    for my $name ( keys %$params ) {
+        next if !exists $self->input->{$name};
+        
+        for my $validator ( @{ $self->get_validators({ name => $name }) } ) {
+            next if $self->has_errors( $validator->field->name );
+    
+            my @errors = eval { $validator->process($params); };
+            if ( blessed $@ && $@->isa('HTML::FormFu::Exception::Validator') ) {
+                push @errors, $@;
+            }
+            elsif ($@) {
+                push @errors, HTML::FormFu::Exception::Validator->new;
+            }
+    
+            for my $error (@errors) {
+                $error->parent( $validator->parent ) if !$error->parent;
+                $error->validator($validator)        if !$error->validator;
+    
+                $error->parent->add_error($error);
+            }
         }
     }
 
@@ -429,12 +440,13 @@ sub _transform_input {
 
     my $params = $self->_processed_params;
 
-    for my $name ( keys %{ $self->_processed_params } ) {
+    for my $name ( keys %$params ) {
+        next if !exists $self->input->{$name};
+        
         my $value = $params->{$name};
 
         for my $transformer (
-            map { @{ $_->get_transformers( { name => $name } ) } }
-            @{ $self->_elements } )
+            @{ $self->get_transformers({ name => $name }) } )
         {
             next if $self->has_errors( $transformer->field->name );
 
@@ -468,7 +480,11 @@ sub _build_valid_names {
     my ($self) = @_;
 
     my @errors = $self->has_errors;
-    my @names = keys %{ $self->input }, keys %{ $self->_processed_params };
+    my @names;
+    push @names, keys %{ $self->input };
+    push @names, keys %{ $self->_processed_params };
+
+    @names = uniq( sort @names );
 
     my %valid;
 CHECK: for my $name (@names) {
@@ -608,8 +624,9 @@ sub render {
             force_error_message => $self->force_error_message,
             form_error_message  => xml_escape( $self->form_error_message ),
             _elements           => [ map { $_->render } @{ $self->_elements } ],
-            parent              => $self,
         } );
+
+    $render->parent($self);
 
     $render->attributes( xml_escape $self->attributes );
     $render->stash( $self->stash );
@@ -647,10 +664,8 @@ Please note that this is beta software.
 There may be API changes required before the 1.0 release. Any incompatible 
 changes will first be discussed on the L<mailing list|/SUPPORT>.
 
-Much work is needed on documentation, and contributions are welcome. This 
-file is quite extensively documented, but may contain errors due to 
-more recent code changes. Some C<pm> files may not be documented at all yet, 
-so please refer to the test suite, the code, or questions are welcome on the 
+Work is still needed on the documentation, if you come across any errors or 
+find something confusing, please give feedback via the 
 L<mailing list|/SUPPORT>.
 
 =head1 SYNOPSIS
@@ -672,22 +687,31 @@ L<mailing list|/SUPPORT>.
     }
 
 Here's an example of a config file to create a basic login form (all examples 
-here are L<YAML>, but you can use any format supported by L<Config::Any>).
+here are L<YAML>, but you can use any format supported by L<Config::Any>), 
+you can also create forms directly in your perl code, rather than using an 
+external config file.
 
     ---
     action: /login
-    indicator: user
+    indicator: submit
     auto_fieldset: 1
+    
     elements:
-      - type: text
+      - type: Text
         name: user
         constraints: 
           - Required
-      - type: password
+      
+      - type: Password
         name: pass
         constraints:
           - Required
-      - type: submit
+      
+      - type: Submit
+        name: submit
+    
+    constraints:
+      - SingleValue
 
 =head1 DESCRIPTION
 
@@ -700,13 +724,42 @@ default formfu renders "XHTML 1.0 Strict" compliant markup, with as little
 extra markup as possible, but with sufficient CSS class names to allow for a 
 wide-range of output styles to be generated by changing only the CSS.
 
-All methods listed below (except L</new> can either be called as a normal 
+All methods listed below (except L</new>) can either be called as a normal 
 method on your C<$form> object, or as an option in your config file. Examples 
 will mainly be shown in L<YAML> config syntax.
 
 This documentation follows the convention that method arguments surrounded 
 by square brackets C<[]> are I<optional>, and all other arguments are 
 required.
+
+=head1 GETTING STARTED
+
+HTML::FormFu uses a templating system such as L<Template::Toolkit|Template> 
+or L<Template::Alloy> to create the form's XHTML output. As such, it needs 
+to be able to find it's own template files. If you're using the L<Catalyst> 
+web framework, just run the following command:
+
+    $ script/myapp_create.pl HTML::FormFu
+
+This will create a directory, C<root/formfu>, containing the HTML::FormFu 
+template files. If you also use L<Catalyst::Controller::HTML::FormFu>, this 
+will also use that directory by default.
+
+If you're not using L<Catalyst>, you can create the template files by 
+running the following command (while in the directory containing your CGI 
+programs):
+
+    $ html_formfu_deploy.pl
+
+This installs the templates files in directory C<./root>, which is the 
+default path that HTML::FormFu searches in.
+
+Although HTML::FormFu uses L<Template::Toolkit|Template> internally, 
+HTML::FormFu can be used in conjunction with whichever other templating 
+system you prefer to use for your own page layouts, whether it's 
+L<HTML::Template>, C<< <TMPL_VAR form> >>, 
+L<Petal>, C<< <form tal:replace="form"></form> >> 
+or L<Template::Magic>, C<< <!-- {form} --> >>.
 
 =head1 BUILDING A FORM
 
@@ -819,9 +872,9 @@ A few examples and their output, to demonstrate:
 
     ---
     elements:
-      - type: text
+      - type: Text
         name: foo
-      - type: text
+      - type: Text
         name: bar
 
     <form action="" method="post">
@@ -838,9 +891,9 @@ A few examples and their output, to demonstrate:
     ---
     auto_fieldset: 1
     elements:
-      - type: text
+      - type: Text
         name: foo
-      - type: text
+      - type: Text
         name: bar
 
     <form action="" method="post">
@@ -859,12 +912,12 @@ The 3rd element is within a new fieldset
     ---
     auto_fieldset: { id: fs }
     elements:
-      - type: text
+      - type: Text
         name: foo
-      - type: text
+      - type: Text
         name: bar
-      - type: fieldset
-      - type: text
+      - type: Fieldset
+      - type: Text
         name: baz
 
     <form action="" method="post">
@@ -886,7 +939,7 @@ The 3rd element is within a new fieldset
 Because of this behaviour, if you want nested fieldsets you will have to add 
 each nested fieldset directly to it's intended parent.
 
-    my $parent = $form->get_element({ type => 'fieldset' });
+    my $parent = $form->get_element({ type => 'Fieldset' });
     
     $parent->element('fieldset');
 
@@ -936,9 +989,9 @@ L<size|HTML::FormFu::Element/size> of C<10>, and make every C<textarea>
 element automatically get a class-name of C<bigbox>:
 
     element_defaults:
-      text:
+      Text:
         size: 10
-      textarea:
+      Textarea:
         add_attributes:
           class: bigbox
 
@@ -1004,7 +1057,7 @@ Return Value: @deflators
 
 A L<deflator|HTML::FormFu::Deflator> may be associated with any form field, 
 and allows you to provide 
-L<< $field->default|HTML:FormFu::Element::_field/default >> with a value 
+L<< $field->default|HTML:FormFu::Element::_Field/default >> with a value 
 which may be an object.
 
 If an object doesn't stringify to a suitable value for display, the 
@@ -1830,7 +1883,7 @@ Accepts both C<name> and C<type> arguments to narrow the returned results.
 
     $form->get_elements({
         name => 'foo',
-        type => 'radio',
+        type => 'Radio',
     });
 
 See L</get_all_elements> for a recursive version.
@@ -1863,7 +1916,7 @@ Accepts both C<name> and C<type> arguments to narrow the returned results.
 
     $form->get_fields({
         name => 'foo',
-        type => 'radio',
+        type => 'Radio',
     });
 
 =head2 get_field
@@ -2059,12 +2112,41 @@ config file, which should be loaded by each form.
 
 See L</load_config_file>.
 
+=head1 EXAMPLES
+
+=head2 vertically-aligned CSS
+
+The distribution directory C<examples/vertically-aligned> contains a form with 
+example CSS for a "vertically aligned" theme.
+
+This can be viewed by opening the file C<vertically-aligned.html> in a 
+web-browser.
+
+If you wish to experiment with making changes, the form is defined in file 
+C<vertically-aligned.yml>, and the HTML file can be updated with any changes 
+by running the following command (while in the distribution root directory).
+
+    perl examples/vertically-aligned/vertically-aligned.pl
+
+This uses the C<Template Toolkit|Template> file C<vertically-aligned.tt>, 
+and the CSS is defined in files C<vertically-aligned.css> and 
+C<vertically-aligned-ie.css>.
+
 =head1 FREQUENTLY ASKED QUESTIONS (FAQ)
 
 =head2 It's too slow!
 
 Are you using L<Catalyst::Plugin::StackTrace>? This is known to 
 cause performance problems, and we advise disabling it.
+
+You can also tell HTML::FormFu to use L<Template::Alloy> instead of 
+L<Template::Toolkit|Template>, it's mostly compatible, and in most cases 
+provides a reasonable speed increase. You can do this either by setting the 
+C<HTML_FORMFU_TEMPLATE_ALLOY> environment variable to a true value, or with 
+the following yaml config:
+
+    render_class_args:
+      TEMPLATE_ALLOY: 1
 
 =head2 How do I add an onSubmit handler to the form?
 
@@ -2077,7 +2159,7 @@ See L<HTML::FormFu/attributes>.
 
     ---
     elements:
-      - type: text
+      - type: Text
         attributes_xml: { onchange: $javascript }
 
 See L<HTML::FormFu::Element/attributes>.
@@ -2094,7 +2176,7 @@ the L<tag|HTML::FormFu::Element::Block/tag> to the tag type you want.
 
     ---
     elements:
-      - type: block
+      - type: Block
         tag: span
 
 =head2 How do I check if a textfield contains a URI in a proper format?
@@ -2103,11 +2185,25 @@ Use HTML::FormFu::Constraint::Regex:
 
     ---
     elements:
-        - type: text
+        - type: Text
           name: uri
           constraint:
             - type: Regex
               common: [ URI, HTTP, { '-scheme': 'ftp|https?' ]
+
+=head2 If a user enters a value like "  foo  " and we need to redisplay the form, I would like the prefilled value to be "foo".
+
+First you have to use the TrimEdges Filter.
+
+Second to get this behaviour, set 'render_processed_value' to a true value.
+
+You can set this at the form level to effect all fields, or set it at
+the fieldset- or field-level.
+
+One thing to beware is if you have Inflators on a field that create an
+object, you'll need to ensure either that the object stringifies
+correctly, or set "render_processed_value = 0" for that particular
+field.
 
 =head1 SUPPORT
 

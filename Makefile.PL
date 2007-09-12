@@ -12,11 +12,10 @@ requires 'perl' => '5.8.1';
 requires 'Carp';
 requires 'Class::Accessor::Chained::Fast';
 requires 'Class::C3';
-requires 'Class::Data::Accessor';
 requires 'Config::Any';
 requires 'Data::Visitor::Callback';
 requires 'Date::Calc';
-requires 'DateTime::Format::Builder';
+requires 'DateTime::Format::Builder' => '0.7901'; # fixes memory leaks
 requires 'DateTime::Format::Strptime';
 requires 'DateTime::Locale';
 requires 'Email::Valid';
@@ -29,6 +28,7 @@ requires 'Module::Pluggable';
 requires 'Regexp::Copy';
 requires 'Regexp::Common';
 requires 'Scalar::Util';
+requires 'Task::Weaken'; # to ensure Scalar::Util was built with weaken()
 requires 'Storable' => '2.05';
 requires 'Template' => '2.19';
 requires 'YAML::Syck';
@@ -43,6 +43,8 @@ feature $msg,
 build_requires 'Test::NoWarnings';
 
 tests 't/*.t t/*/*.t';
+
+install_script('bin/html_formfu_deploy.pl');
 
 auto_install();
 &WriteAll;

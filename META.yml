@@ -18,11 +18,10 @@ requires:
   Carp: 0
   Class::Accessor::Chained::Fast: 0
   Class::C3: 0
-  Class::Data::Accessor: 0
   Config::Any: 0
   Data::Visitor::Callback: 0
   Date::Calc: 0
-  DateTime::Format::Builder: 0
+  DateTime::Format::Builder: 0.7901
   DateTime::Format::Strptime: 0
   DateTime::Locale: 0
   Email::Valid: 0
@@ -36,8 +35,9 @@ requires:
   Regexp::Copy: 0
   Scalar::Util: 0
   Storable: 2.05
+  Task::Weaken: 0
   Template: 2.19
   YAML::Syck: 0
   perl: 5.8.1
 tests: t/*.t t/*/*.t
-version: 0.01003
+version: 0.01004
