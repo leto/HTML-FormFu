@@ -102,6 +102,8 @@ lib/HTML/FormFu/Inflator/DateTime.pm
 lib/HTML/FormFu/Literal.pm
 lib/HTML/FormFu/Localize.pm
 lib/HTML/FormFu/ObjectUtil.pm
+lib/HTML/FormFu/OutputProcessor.pm
+lib/HTML/FormFu/OutputProcessor/Indent.pm
 lib/HTML/FormFu/Preload.pm
 lib/HTML/FormFu/Processor.pm
 lib/HTML/FormFu/QueryType/Catalyst.pm
@@ -179,6 +181,7 @@ t/constraints/autoset_group.t
 t/constraints/bool.t
 t/constraints/callback.t
 t/constraints/callbackonce.t
+t/constraints/constraint_when.t
 t/constraints/dependon.t
 t/constraints/email.t
 t/constraints/equal.t
@@ -208,6 +211,7 @@ t/elements/block.t
 t/elements/button.t
 t/elements/button_no_name.t
 t/elements/checkbox.t
+t/elements/checkbox_force_default.t
 t/elements/checkbox_retain_default.t
 t/elements/content_button.t
 t/elements/date.t
@@ -227,14 +231,17 @@ t/elements/password.t
 t/elements/password_render_value.t
 t/elements/password_retain_default.t
 t/elements/radio.t
+t/elements/radio_force_default.t
 t/elements/radio_retain_default.t
 t/elements/radiogroup.t
 t/elements/radiogroup_errors.t
+t/elements/radiogroup_force_default.t
 t/elements/radiogroup_id.t
 t/elements/radiogroup_retain_default.t
 t/elements/radiogroup_subgroup.t
 t/elements/reset.t
 t/elements/select.t
+t/elements/select_force_default.t
 t/elements/select_optgroup.t
 t/elements/select_retain_default.t
 t/elements/select_value_range.t
@@ -249,6 +256,7 @@ t/elements/submit.t
 t/elements/text.t
 t/elements/text_attributes.t
 t/elements/text_errors.t
+t/elements/text_force_default.t
 t/elements/text_retain_default.t
 t/elements/textarea.t
 t/escaping.t
@@ -279,6 +287,7 @@ t/force_errors/integer.t
 t/force_errors/minmaxfields.t
 t/form/add_render_class_args.t
 t/form/add_valid.t
+t/form/add_valid_unknown.t
 t/form/attributes.t
 t/form/auto_constraint_class.t
 t/form/auto_error_class.t
@@ -347,6 +356,8 @@ t/load_config_file_multiple2.yml
 t/multiple_radiogroup_fields.t
 t/multiple_select_fields.t
 t/multiple_text_fields.t
+t/output_processors/indent.t
+t/output_processors/indent_internals.t
 t/utils/append_xml_attribute.t
 t/utils/has_xml_attribute.t
 t/utils/remove_xml_attribute.t

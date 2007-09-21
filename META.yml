@@ -28,6 +28,7 @@ requires:
   File::Copy: 0
   File::Spec: 0
   HTML::Scrubber: 0
+  HTML::TokeParser::Simple: 0
   List::MoreUtils: 0
   Locale::Maketext::Simple: 0
   Module::Pluggable: 0
@@ -40,4 +41,4 @@ requires:
   YAML::Syck: 0
   perl: 5.8.1
 tests: t/*.t t/*/*.t
-version: 0.01004
+version: 0.01005

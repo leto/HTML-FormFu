@@ -4,8 +4,7 @@ use strict;
 use base 'HTML::FormFu::Element';
 use Class::C3;
 
-use HTML::FormFu::Attribute qw/
-    mk_attrs mk_require_methods mk_get_one_methods /;
+use HTML::FormFu::Attribute qw/ mk_attrs /;
 use HTML::FormFu::ObjectUtil qw/
     get_error _require_constraint /;
 use HTML::FormFu::Util qw/
@@ -30,7 +29,8 @@ __PACKAGE__->mk_accessors(
     qw/
         _constraints _filters _inflators _deflators _validators _transformers
         _errors container_tag
-        field_filename label_filename retain_default javascript /
+        field_filename label_filename retain_default force_default
+        javascript /
 );
 
 __PACKAGE__->mk_output_accessors(qw/ comment label value /);
@@ -40,92 +40,6 @@ __PACKAGE__->mk_inherited_accessors(
         auto_constraint_class auto_inflator_class auto_validator_class
         auto_transformer_class render_processed_value force_errors /
 );
-
-__PACKAGE__->mk_require_methods(
-    qw/
-        deflator filter inflator validator transformer /
-);
-
-__PACKAGE__->mk_get_one_methods(
-    qw/
-        deflator filter constraint inflator validator transformer /
-);
-
-# build _single_X methods
-
-for my $method (
-    qw/
-    deflator filter constraint inflator validator transformer /
-    )
-{
-    no strict 'refs';
-
-    my $sub = sub {
-        my ( $self, $arg ) = @_;
-        my @items;
-
-        if ( ref $arg eq 'HASH' ) {
-            push @items, $arg;
-        }
-        elsif ( !ref $arg ) {
-            push @items, { type => $arg };
-        }
-        else {
-            croak 'invalid args';
-        }
-
-        my @return;
-
-        for my $item (@items) {
-            my $type           = delete $item->{type};
-            my $require_method = "_require_$method";
-            my $array_method   = "_${method}s";
-
-            my $new = $self->$require_method( $type, $item );
-
-            push @{ $self->$array_method }, $new;
-            push @return, $new;
-        }
-
-        return @return;
-    };
-
-    my $name = __PACKAGE__ . "::_single_$method";
-
-    *{$name} = $sub;
-}
-
-# build get_Xs methods
-
-for my $method (
-    qw/
-    deflator filter constraint inflator validator transformer /
-    )
-{
-    no strict 'refs';
-
-    my $sub = sub {
-        my $self         = shift;
-        my %args         = _parse_args(@_);
-        my $array_method = "_${method}s";
-
-        my @x = @{ $self->$array_method };
-
-        if ( exists $args{name} ) {
-            @x = grep { $_->name eq $args{name} } @x;
-        }
-
-        if ( exists $args{type} ) {
-            @x = grep { $_->type eq $args{type} } @x;
-        }
-
-        return \@x;
-    };
-
-    my $name = __PACKAGE__ . "::get_${method}s";
-
-    *{$name} = $sub;
-}
 
 *constraints  = \&constraint;
 *filters      = \&filter;
@@ -158,15 +72,15 @@ sub new {
     return $self;
 }
 
-sub constraint {
+sub deflator {
     my ( $self, $arg ) = @_;
     my @return;
 
     if ( ref $arg eq 'ARRAY' ) {
-        push @return, map { _single_constraint( $self, $_ ) } @$arg;
+        push @return, map { _single_deflator( $self, $_ ) } @$arg;
     }
     else {
-        push @return, _single_constraint( $self, $arg );
+        push @return, _single_deflator( $self, $arg );
     }
 
     return @return == 1 ? $return[0] : @return;
@@ -186,15 +100,15 @@ sub filter {
     return @return == 1 ? $return[0] : @return;
 }
 
-sub deflator {
+sub constraint {
     my ( $self, $arg ) = @_;
     my @return;
 
     if ( ref $arg eq 'ARRAY' ) {
-        push @return, map { _single_deflator( $self, $_ ) } @$arg;
+        push @return, map { _single_constraint( $self, $_ ) } @$arg;
     }
     else {
-        push @return, _single_deflator( $self, $arg );
+        push @return, _single_constraint( $self, $arg );
     }
 
     return @return == 1 ? $return[0] : @return;
@@ -242,6 +156,108 @@ sub transformer {
     return @return == 1 ? $return[0] : @return;
 }
 
+sub get_deflators {
+    my $self = shift;
+    my %args = _parse_args(@_);
+
+    my @x = @{ $self->_deflators };
+
+    if ( exists $args{name} ) {
+        @x = grep { $_->name eq $args{name} } @x;
+    }
+
+    if ( exists $args{type} ) {
+        @x = grep { $_->type eq $args{type} } @x;
+    }
+
+    return \@x;
+};
+
+sub get_filters {
+    my $self = shift;
+    my %args = _parse_args(@_);
+
+    my @x = @{ $self->_filters };
+
+    if ( exists $args{name} ) {
+        @x = grep { $_->name eq $args{name} } @x;
+    }
+
+    if ( exists $args{type} ) {
+        @x = grep { $_->type eq $args{type} } @x;
+    }
+
+    return \@x;
+};
+
+sub get_constraints {
+    my $self = shift;
+    my %args = _parse_args(@_);
+
+    my @x = @{ $self->_constraints };
+
+    if ( exists $args{name} ) {
+        @x = grep { $_->name eq $args{name} } @x;
+    }
+
+    if ( exists $args{type} ) {
+        @x = grep { $_->type eq $args{type} } @x;
+    }
+
+    return \@x;
+};
+
+sub get_inflators {
+    my $self = shift;
+    my %args = _parse_args(@_);
+
+    my @x = @{ $self->_inflators };
+
+    if ( exists $args{name} ) {
+        @x = grep { $_->name eq $args{name} } @x;
+    }
+
+    if ( exists $args{type} ) {
+        @x = grep { $_->type eq $args{type} } @x;
+    }
+
+    return \@x;
+};
+
+sub get_validators {
+    my $self = shift;
+    my %args = _parse_args(@_);
+
+    my @x = @{ $self->_validators };
+
+    if ( exists $args{name} ) {
+        @x = grep { $_->name eq $args{name} } @x;
+    }
+
+    if ( exists $args{type} ) {
+        @x = grep { $_->type eq $args{type} } @x;
+    }
+
+    return \@x;
+};
+
+sub get_transformers {
+    my $self = shift;
+    my %args = _parse_args(@_);
+
+    my @x = @{ $self->_transformers };
+
+    if ( exists $args{name} ) {
+        @x = grep { $_->name eq $args{name} } @x;
+    }
+
+    if ( exists $args{type} ) {
+        @x = grep { $_->type eq $args{type} } @x;
+    }
+
+    return \@x;
+};
+
 sub get_errors {
     my $self = shift;
     my %args = _parse_args(@_);
@@ -283,7 +299,31 @@ sub clear_errors {
     return;
 }
 
-sub process_input { }
+sub process_input {
+    my ( $self, $input ) = @_;
+
+    my $submitted = $self->form->submitted;
+    my $default   = $self->default;
+    my $original  = $self->value;
+    my $field     = $self->name;
+
+    # set input to default value (defined before calling FormFu->process)
+    if ( $submitted && $self->force_default && defined $default ) {
+        $input->{$field} = $default;
+    }
+    # checkbox, radio
+    elsif ( $submitted && $self->force_default && $self->checked ) {
+        # the checked attribute is set, so force input to be the original value
+        $input->{$field} = $original;
+    }
+    # checkbox, radio
+    elsif ( $submitted && $self->force_default && !defined $default && defined $original ) {
+        # default and value are not equal, so this element is not checked by default
+        $input->{$field} = undef;
+    }
+
+    return;
+}
 
 sub prepare_id {
     my ( $self, $render ) = @_;
@@ -321,6 +361,16 @@ sub process_value {
         : $default;
 
     if ( $submitted && $self->retain_default && defined $new && $new eq "" ) {
+        $new = $default;
+    }
+
+    # if the default value has been changed after FormFu->process has been
+    # called we use it and set the value to that changed default again
+    if (   $submitted
+        && $self->force_default
+        && defined $default
+        && $new ne $default )
+    {
         $new = $default;
     }
 
@@ -622,6 +672,132 @@ sub clone {
     return $clone;
 }
 
+sub _single_deflator {
+    my ( $self, $arg ) = @_;
+
+    if ( !ref $arg ) {
+        $arg = { type => $arg };
+    }
+    elsif ( ref $arg ne 'HASH' ) {
+        croak 'invalid args';
+    }
+
+    my @return;
+
+    my $type = delete $arg->{type};
+
+    my $new = $self->_require_deflator( $type, $arg );
+
+    push @{ $self->_deflators }, $new;
+
+    return $new;
+};
+
+sub _single_filter {
+    my ( $self, $arg ) = @_;
+
+    if ( !ref $arg ) {
+        $arg = { type => $arg };
+    }
+    elsif ( ref $arg ne 'HASH' ) {
+        croak 'invalid args';
+    }
+
+    my @return;
+
+    my $type = delete $arg->{type};
+
+    my $new = $self->_require_filter( $type, $arg );
+
+    push @{ $self->_filters }, $new;
+
+    return $new;
+};
+
+sub _single_constraint {
+    my ( $self, $arg ) = @_;
+
+    if ( !ref $arg ) {
+        $arg = { type => $arg };
+    }
+    elsif ( ref $arg ne 'HASH' ) {
+        croak 'invalid args';
+    }
+
+    my @return;
+
+    my $type = delete $arg->{type};
+
+    my $new = $self->_require_constraint( $type, $arg );
+
+    push @{ $self->_constraints }, $new;
+
+    return $new;
+};
+
+sub _single_inflator {
+    my ( $self, $arg ) = @_;
+
+    if ( !ref $arg ) {
+        $arg = { type => $arg };
+    }
+    elsif ( ref $arg ne 'HASH' ) {
+        croak 'invalid args';
+    }
+
+    my @return;
+
+    my $type = delete $arg->{type};
+
+    my $new = $self->_require_inflator( $type, $arg );
+
+    push @{ $self->_inflators }, $new;
+
+    return $new;
+};
+
+sub _single_validator {
+    my ( $self, $arg ) = @_;
+
+    if ( !ref $arg ) {
+        $arg = { type => $arg };
+    }
+    elsif ( ref $arg ne 'HASH' ) {
+        croak 'invalid args';
+    }
+
+    my @return;
+
+    my $type = delete $arg->{type};
+
+    my $new = $self->_require_validator( $type, $arg );
+
+    push @{ $self->_validators }, $new;
+
+    return $new;
+};
+
+sub _single_transformer {
+    my ( $self, $arg ) = @_;
+
+    if ( !ref $arg ) {
+        $arg = { type => $arg };
+    }
+    elsif ( ref $arg ne 'HASH' ) {
+        croak 'invalid args';
+    }
+
+    my @return;
+
+    my $type = delete $arg->{type};
+
+    my $new = $self->_require_transformer( $type, $arg );
+
+    push @{ $self->_transformers }, $new;
+
+    return $new;
+};
+
 1;
 
 __END__
@@ -736,6 +912,18 @@ If L</retain_default> is true and the form was submitted, but the field
 didn't have a value submitted, then when the form is redisplayed to the user 
 the field will have it's value set to it's default value , rather than the 
 usual behaviour of having an empty value.
+
+Default Value: C<false>
+
+=head2 force_default
+
+If L</force_default> is true and the form was submitted, and the field
+has a default/value set, then when the form is redisplayed to the user
+the field will have it's value set to it's default value.
+
+If the default value is being changed after FormFu->process is being called
+the later default value is respected for rendering, *but* nevertheless the
+input value doesn't respect that, it will remain the first value.
 
 Default Value: C<false>
 

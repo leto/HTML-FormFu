@@ -1,24 +1,13 @@
-package HTML::FormFu::Processor;
+package HTML::FormFu::OutputProcessor;
 
 use strict;
 use Class::C3;
 
-use HTML::FormFu::Attribute qw( mk_accessors mk_output_accessors );
-use HTML::FormFu::ObjectUtil qw( populate form name parent );
-use Scalar::Util qw/ refaddr /;
+use HTML::FormFu::Attribute qw( mk_accessors );
+use HTML::FormFu::ObjectUtil qw( populate form parent );
 use Carp qw/ croak /;
 
-use overload
-    'eq' => sub { refaddr $_[0] eq refaddr $_[1] },
-    '==' => sub { refaddr $_[0] eq refaddr $_[1] },
-    bool => sub {1},
-    fallback => 1;
-
-__PACKAGE__->mk_accessors(qw/ type localize_args /);
-
-__PACKAGE__->mk_output_accessors(qw/ message /);
-
-*field = \&parent;
+__PACKAGE__->mk_accessors(qw/ type /);
 
 sub new {
     my $class = shift;
@@ -56,7 +45,19 @@ __END__
 
 =head1 NAME
 
-HTML::FormFu::Processor - base class for constraints
+HTML::FormFu::OutputProcessor - Post-process HTML output
+
+=head1 DESCRIPTION
+
+Post-process a form or element's HTML.
+
+=head1 CORE OUTPUT PROCESSORS
+
+=over
+
+=item L<HTML::FormFu::OutputProcessor::Indent>
+
+=back
 
 =head1 AUTHOR
 

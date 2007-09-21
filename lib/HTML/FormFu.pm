@@ -2,8 +2,7 @@ package HTML::FormFu;
 use strict;
 
 use HTML::FormFu::Attribute qw/
-    mk_attrs mk_attr_accessors mk_add_methods mk_single_methods
-    mk_require_methods mk_get_methods mk_get_one_methods 
+    mk_attrs mk_attr_accessors
     mk_inherited_accessors mk_output_accessors
     mk_inherited_merging_accessors mk_accessors /;
 use HTML::FormFu::Constraint;
@@ -13,12 +12,12 @@ use HTML::FormFu::Filter;
 use HTML::FormFu::Inflator;
 use HTML::FormFu::Localize;
 use HTML::FormFu::ObjectUtil qw/
-    _single_element _require_constraint
-    get_elements get_element get_all_elements get_all_element
-    get_fields get_field get_errors get_error clear_errors
+    :FORM_AND_BLOCK
+    :FORM_AND_ELEMENT
     populate load_config_file insert_before insert_after form
     _render_class clone stash constraints_from_dbic parent /;
-use HTML::FormFu::Util qw/ require_class _get_elements xml_escape /;
+use HTML::FormFu::Util qw/ require_class _get_elements xml_escape
+    _parse_args /;
 use List::MoreUtils qw/ uniq /;
 use Scalar::Util qw/ blessed refaddr weaken /;
 use Storable qw/ dclone /;
@@ -41,7 +40,7 @@ __PACKAGE__->mk_accessors(
         element_defaults query_type languages force_error_message
         localize_class submitted query input _auto_fieldset
         _elements _processed_params _valid_names
-        render_class_suffix /
+        render_class_suffix _output_processors /
 );
 
 __PACKAGE__->mk_output_accessors(qw/ form_error_message /);
@@ -56,43 +55,19 @@ __PACKAGE__->mk_inherited_accessors(
 );
 
 __PACKAGE__->mk_inherited_merging_accessors(
-    qw/ render_class_args config_callback / );
+    qw/ render_class_args config_callback /);
 
-__PACKAGE__->mk_add_methods(
-    qw/
-        element deflator filter constraint inflator validator transformer /
-);
+*elements          = \&element;
+*constraints       = \&constraint;
+*filters           = \&filter;
+*deflators         = \&deflator;
+*inflators         = \&inflator;
+*validators        = \&validator;
+*transformers      = \&transformer;
+*output_processors = \&output_processor;
+*loc               = \&localize;
 
-__PACKAGE__->mk_single_methods(
-    qw/
-        deflator filter constraint inflator validator transformer /
-);
-
-__PACKAGE__->mk_require_methods(
-    qw/
-        deflator filter inflator validator transformer /
-);
-
-__PACKAGE__->mk_get_methods(
-    qw/
-        deflator filter constraint inflator validator transformer /
-);
-
-__PACKAGE__->mk_get_one_methods(
-    qw/
-        deflator filter constraint inflator validator tranformer /
-);
-
-*elements     = \&element;
-*constraints  = \&constraint;
-*filters      = \&filter;
-*deflators    = \&deflator;
-*inflators    = \&inflator;
-*validators   = \&validator;
-*transformers = \&transformer;
-*loc          = \&localize;
-
-our $VERSION = '0.01004';
+our $VERSION = '0.01005';
 $VERSION = eval $VERSION;
 
 Class::C3::initialize();
@@ -108,6 +83,7 @@ sub new {
 
     my %defaults = (
         _elements           => [],
+        _output_processors  => [],
         _valid_names        => [],
         _processed_params   => {},
         input               => {},
@@ -275,7 +251,7 @@ sub _build_params {
 
     for my $name (@names) {
         next if !exists $input->{$name};
-        
+
         my $input = exists $input->{$name} ? $input->{$name} : undef;
 
         if ( ref $input eq 'ARRAY' ) {
@@ -331,8 +307,8 @@ sub _filter_input {
 
     for my $name ( keys %$params ) {
         next if !exists $self->input->{$name};
-        
-        for my $filter ( @{ $self->get_filters({ name => $name }) } ) {
+
+        for my $filter ( @{ $self->get_filters( { name => $name } ) } ) {
             $filter->process( $self, $params );
         }
     }
@@ -344,11 +320,11 @@ sub _constrain_input {
     my ($self) = @_;
 
     my $params = $self->_processed_params;
-    
+
     for my $constraint ( @{ $self->get_constraints } ) {
-        
+
         my @errors = eval { $constraint->process($params); };
-        
+
         if ( blessed $@ && $@->isa('HTML::FormFu::Exception::Constraint') ) {
             push @errors, $@;
         }
@@ -374,12 +350,12 @@ sub _inflate_input {
 
     for my $name ( keys %$params ) {
         next if !exists $self->input->{$name};
-        
+
         next if $self->has_errors($name);
 
         my $value = $params->{$name};
 
-        for my $inflator ( @{ $self->get_inflators({ name => $name }) } ) {
+        for my $inflator ( @{ $self->get_inflators( { name => $name } ) } ) {
             my @errors;
 
             ( $value, @errors ) = eval { $inflator->process($value); };
@@ -411,10 +387,10 @@ sub _validate_input {
 
     for my $name ( keys %$params ) {
         next if !exists $self->input->{$name};
-        
-        for my $validator ( @{ $self->get_validators({ name => $name }) } ) {
+
+        for my $validator ( @{ $self->get_validators( { name => $name } ) } ) {
             next if $self->has_errors( $validator->field->name );
-    
+
             my @errors = eval { $validator->process($params); };
             if ( blessed $@ && $@->isa('HTML::FormFu::Exception::Validator') ) {
                 push @errors, $@;
@@ -422,11 +398,11 @@ sub _validate_input {
             elsif ($@) {
                 push @errors, HTML::FormFu::Exception::Validator->new;
             }
-    
+
             for my $error (@errors) {
                 $error->parent( $validator->parent ) if !$error->parent;
                 $error->validator($validator)        if !$error->validator;
-    
+
                 $error->parent->add_error($error);
             }
         }
@@ -442,11 +418,11 @@ sub _transform_input {
 
     for my $name ( keys %$params ) {
         next if !exists $self->input->{$name};
-        
+
         my $value = $params->{$name};
 
         for my $transformer (
-            @{ $self->get_transformers({ name => $name }) } )
+            @{ $self->get_transformers( { name => $name } ) } )
         {
             next if $self->has_errors( $transformer->field->name );
 
@@ -647,6 +623,96 @@ sub hidden_fields {
 
     return join "",
         map { $_->render } @{ $self->get_fields( { type => 'Hidden' } ) };
+}
+
+sub output_processor {
+    my ( $self, $arg ) = @_;
+    my @return;
+
+    if ( ref $arg eq 'ARRAY' ) {
+        push @return, map { $self->_single_output_processor($_) } @$arg;
+    }
+    else {
+        push @return, $self->_single_output_processor($arg);
+    }
+
+    return @return == 1 ? $return[0] : @return;
+};
+
+sub _single_output_processor {
+    my ( $self, $arg ) = @_;
+    my @items;
+
+    if ( ref $arg eq 'HASH' ) {
+        push @items, $arg;
+    }
+    elsif ( !ref $arg ) {
+        push @items, { type => $arg };
+    }
+    else {
+        croak 'invalid args';
+    }
+
+    my @return;
+
+    for my $item (@items) {
+        my $type = delete $item->{type};
+
+        my $new = $self->_require_output_processor( $type, $item );
+
+        push @{ $self->_output_processors }, $new;
+        push @return, $new;
+    }
+
+    return @return;
+}
+
+sub _require_output_processor {
+    my ( $self, $type, $opt ) = @_;
+
+    croak 'required arguments: $self, $type, \%options' if @_ != 3;
+
+    eval { my %x = %$opt };
+    croak "options argument must be hash-ref" if $@;
+
+    my $class = $type;
+    if ( not $class =~ s/^\+// ) {
+        $class = "HTML::FormFu::OutputProcessor::$class";
+    }
+
+    $type =~ s/^\+//;
+
+    require_class($class);
+
+    my $object = $class->new( {
+        type   => $type,
+        parent => $self,
+        } );
+
+    $object->populate( $opt );
+
+    return $object;
+};
+
+sub get_output_processors {
+    my $self = shift;
+    my %args = _parse_args(@_);
+
+    my @x = @{ $self->_output_processors };
+
+    if ( exists $args{type} ) {
+        @x = grep { $_->type eq $args{type} } @x;
+    }
+
+    return \@x;
+}
+
+sub get_output_processor {
+    my $self = shift;
+
+    my $x = $self->get_output_processors(@_);
+
+    return @$x ? $x->[0] : ();
 }
 
 1;

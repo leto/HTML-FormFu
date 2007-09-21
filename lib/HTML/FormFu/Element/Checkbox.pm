@@ -23,7 +23,7 @@ sub new {
 }
 
 sub process_value {
-    my ( $self, $render ) = @_;
+    my ( $self, $input ) = @_;
 
     return $self->value;
 }
