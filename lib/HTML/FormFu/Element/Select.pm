@@ -39,10 +39,12 @@ sub _prepare_attrs {
     elsif ($submitted) {
         delete $option->{attributes}{selected};
     }
-    elsif ( defined $default && $default eq $option->{value} ) {
+    elsif ( defined $default
+        && (ref $default eq 'ARRAY'
+            ? grep { $_ eq $option->{value} } @$default
+            : $default eq $option->{value} ) ) {
         $option->{attributes}{selected} = 'selected';
     }
-
     return;
 }
 
@@ -56,11 +58,22 @@ HTML::FormFu::Element::Select - Select form field
 
 =head1 SYNOPSIS
 
-    my $element = $form->element( Select => 'foo' );
+YAML config:
+
+    ---
+    elements:
+      - type: Select
+        name: sex
+        options:
+          - [ 'm', 'Male' ]
+          - [ 'f', 'Female' ]
 
 =head1 DESCRIPTION
 
 Select form field.
+
+Supports optgroups, see L<HTML::FormFu::Element::_Group/options> for 
+details.
 
 =head1 METHODS
 

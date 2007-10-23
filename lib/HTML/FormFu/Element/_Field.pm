@@ -635,7 +635,7 @@ sub _render_transformer_class {
 sub _render_error_class {
     my ( $self, $render ) = @_;
 
-    my @errors = @{ $self->get_errors };
+    my @errors = @{ $self->get_errors({ forced => 1 }) };
 
     if (@errors) {
         $render->{errors} = \@errors;
@@ -926,17 +926,6 @@ the later default value is respected for rendering, *but* nevertheless the
 input value doesn't respect that, it will remain the first value.
 
 Default Value: C<false>
-
-=head2 render_processed_value
-
-The default behaviour when re-displaying a form after a submission, is that 
-the field contains the original unchanged user-submitted value.
-
-If L</render_processed_value> is true, the field value will be the final 
-result after all Filters, Inflators and Transformers have been run. 
-Deflators will also be run on the value.
-
-Default Value: false
 
 =head2 clone
 

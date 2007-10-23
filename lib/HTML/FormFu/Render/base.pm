@@ -93,7 +93,7 @@ sub xhtml {
     $alloy = 1 if $ENV{HTML_FORMFU_TEMPLATE_ALLOY};
     require( $alloy ? 'Template/Alloy.pm' : 'Template.pm' );
 
-    $args{INCLUDE_PATH} = 'root'  if !keys %args;
+    $args{INCLUDE_PATH} = 'root'  if !exists $args{INCLUDE_PATH};
     $args{ENCODING}     = 'UTF-8' if !exists $args{ENCODING};
 
     $args{RELATIVE}  = 1;
@@ -108,8 +108,32 @@ sub xhtml {
         process_attrs => \&process_attrs,
     );
 
-    $template->process( $filename, \%vars, \$output )
-        or croak $template->error;
+    if (!$template->process( $filename, \%vars, \$output )) {
+        
+        my $error = $template->error;
+        my $type  = 'file';
+        
+        if ( !$alloy ) {
+            require "Template/Constants.pm";
+            $type = Template::Constants::ERROR_FILE();
+        }
+        
+        if ( $error->type() eq $type ) {
+            croak <<ERROR;
+Template file not found: '$filename'.
+Set path to HTML::FormFu template directory in
+    \$form->render_class_args->{INCLUDE_PATH}.
+Default is 'root'.
+Run `html_formfu_deploy.pl` to create the files, or see 
+Catalyst::Helper::HTML::FormFu if you're using Catalyst. 
+Template error: '$error'
+ERROR
+
+        }
+        else {
+           croak $error;
+        }
+    }
 
     return $output;
 }

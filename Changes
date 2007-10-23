@@ -1,3 +1,19 @@
+0.01006 2007-10-23
+
+	- render_class_args->{INCLUDE_PATH} now defaults to 'root' if it's not 
+	  set - previously was only set if the entire render_class_args hashref 
+	  was empty
+	- New StripWhitespace OutputProcessor
+	- New CopyValue Filter
+	- New Cookbook and Unicode manual pages
+	- New unicode example Catalyst application
+	- New portuguese I18N translation
+	- Callback Filters, Constraints and Validators now accept a fully 
+	  qualified subroutine name instead of a code-ref
+	- Date element month names from DateTime::Locale are run through ucfirst
+	- Documentation improvements
+	- Bugfix: forced errors are now displayed
+
 0.01005 2007-09-21
 
 	- New Indent "output processor" to pretty-print output

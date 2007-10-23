@@ -232,7 +232,8 @@ sub _build_month_list {
             eval { $loc = DateTime::Locale->load($lang); };
             if ( !$@ ) {
                 @months
-                    = $month->{short_names}
+                    = map {ucfirst}
+                    $month->{short_names}
                     ? @{ $loc->month_abbreviations }
                     : @{ $loc->month_names };
 
@@ -355,8 +356,18 @@ HTML::FormFu::Element::Date - 3 select menu multi-field
     ---
     elements:
       - type: Date
-        name: foo
+        name: birthdate
+        label: 'Birthdate:'
+        day:
+          prefix: "- Day -"
+        month:
+          prefix: "- Month -"
+        year:
+          prefix: "- Year -"
+          less: 70
+          plus: 0
         auto_inflate: 1
+
 
 =head1 DESCRIPTION
 

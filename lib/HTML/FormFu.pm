@@ -67,7 +67,7 @@ __PACKAGE__->mk_inherited_merging_accessors(
 *output_processors = \&output_processor;
 *loc               = \&localize;
 
-our $VERSION = '0.01005';
+our $VERSION = '0.01006';
 $VERSION = eval $VERSION;
 
 Class::C3::initialize();
@@ -123,6 +123,24 @@ sub auto_fieldset {
 
     $self->_auto_fieldset(1);
 
+    return $self;
+}
+
+sub default_values {
+    my $self = shift;
+    
+    my %values;
+    eval { %values = %{ $_[0] } };
+    croak "default_values argument must be a hashref" if $@;
+    
+    for my $field (@{ $self->get_fields }) {
+        my $field_name = $field->name;
+        next unless defined $field_name;
+        next unless exists $values{$field_name};
+        
+        $field->default( $values{$field_name} );
+    }
+    
     return $self;
 }
 
@@ -802,7 +820,7 @@ required.
 
 HTML::FormFu uses a templating system such as L<Template::Toolkit|Template> 
 or L<Template::Alloy> to create the form's XHTML output. As such, it needs 
-to be able to find it's own template files. If you're using the L<Catalyst> 
+to be able to find its own template files. If you're using the L<Catalyst> 
 web framework, just run the following command:
 
     $ script/myapp_create.pl HTML::FormFu
@@ -815,9 +833,9 @@ If you're not using L<Catalyst>, you can create the template files by
 running the following command (while in the directory containing your CGI 
 programs):
 
-    $ html_formfu_deploy.pl
+      $ html_formfu_deploy.pl
 
-This installs the templates files in directory C<./root>, which is the 
+This installs the template files in directory C<./root>, which is the 
 default path that HTML::FormFu searches in.
 
 Although HTML::FormFu uses L<Template::Toolkit|Template> internally, 
@@ -860,9 +878,22 @@ format recognized by L<Config::Any>.
 The content of each config file is passed to L</populate>, and so are added 
 to the form.
 
-L</load_config_file> may be called in a config file itself, as so allow 
+L</load_config_file> may be called in a config file itself, so as to allow 
 common settings to be kept in a single config file which may be loaded 
 by any form.
+
+    ---
+    load_config_file:
+      - file1
+      - file2
+
+Like perl's C<open> function, relative-paths are resolved from the current 
+working directory.
+
+If you're using the C<FormConfig> action controller in 
+L<Catalyst::Controller::HTML::FormFu>, see 
+L<config_file_path|Catalyst::Controller::HTML::FormFu/config_file_path>. 
+
 
 See L</BEST PRACTICES> for advice on organising config files.
 
@@ -894,6 +925,24 @@ method-name and arguments.
 Provides a simple way to set multiple values, or add multiple elements to 
 a form with a single method-call.
 
+Attempts to call the method-names in a semi-intelligent order (see 
+the source of populate() in C<HTML::FormFu::ObjectUtil> for details). 
+
+=head2 default_values
+
+Arguments: \%defaults
+
+Return Value: $form
+
+Set multiple field's default values from a single hash-ref.
+
+The hash-ref's keys correspond to a form field's name, and the value is 
+passed to the field's L<default method|HTML::FormFu::_Field/default>.
+
+This should be called after all fields have been added to the form, and 
+before L</process> is called (otherwise, call L</process> again before 
+rendering the form).
+
 =head2 indicator
 
 Arguments: $field_name
@@ -904,10 +953,10 @@ If L</indicator> is set to a fieldname, L</submitted> will return true if
 a value for that fieldname was submitted.
 
 If L</indicator> is set to a code-ref, it will be called as a subroutine 
-with the two arguments C<$form> and C<$query>, and it's return value will be 
+with the two arguments C<$form> and C<$query>, and its return value will be 
 used as the return value for L</submitted>.
 
-If L</indicator> is not set, </submitted> will return true if a value for 
+If L</indicator> is not set, L</submitted> will return true if a value for 
 any known fieldname was submitted.
 
 =head2 auto_fieldset
@@ -1003,7 +1052,7 @@ The 3rd element is within a new fieldset
     </form>
 
 Because of this behaviour, if you want nested fieldsets you will have to add 
-each nested fieldset directly to it's intended parent.
+each nested fieldset directly to its intended parent.
 
     my $parent = $form->get_element({ type => 'Fieldset' });
     
@@ -1035,10 +1084,10 @@ Arguments: $localization_key
 For ease of use, if you'd like to use the provided localized error message, 
 set L</form_error_message_loc> to the value C<form_error_message>.
 
-You can, of course, set L</form_error_message_loc> to any key in your L10N 
+You can, of course, set L</form_error_message_loc> to any key in your I18N 
 file.
 
-=head1 force_error_message
+=head2 force_error_message
 
 If true, forces the L</form_error_message> to be displayed even if there are 
 no field errors.
@@ -1072,9 +1121,15 @@ of the form.
 
 Arguments: [\%private_stash]
 
+Return Value: \%stash
+
 Provides a hash-ref in which you can store any data you might want to 
-associate with the form. This data will not be used by 
-L<HTML::FormFu|HTML::FormFu> at all.
+associate with the form.
+
+    ---
+    stash:
+      foo: value
+      bar: value
 
 =head2 elements
 
@@ -1102,7 +1157,7 @@ prefixing it with C<+>.
       - type: +MyApp::CustomElement
         name: foo
 
-If a C<type> is not provided in the C<\%options>, the default C<text> will 
+If a C<type> is not provided in the C<\%options>, the default C<Text> will 
 be used.
 
 L</element> is an alias for L</elements>.
@@ -1141,6 +1196,66 @@ prefixing it with C<+>.
 
 L</deflator> is an alias for L</deflators>.
 
+=head2 insert_before
+
+Arguments: $new_element, $existing_element
+
+Return Value: $new_element
+
+The 1st argument must be the element you want added, the 2nd argument 
+must be the existing element that the new element should be placed before.
+
+    my $new = $form->element(\%specs);
+    
+    my $position = $form->get_element({ type => $type, name => $name });
+    
+    $form->insert_before( $new, $position );
+
+In the first line of the above example, the C<$new> element is initially 
+added to the end of the form. However, the C<insert_before> method 
+reparents the C<$new> element, so it will no longer be on the end of the 
+form. Because of this, if you try to copy an element from one form to 
+another, it will 'steal' the element, instead of copying it. In this case, 
+you must use C<clone>:
+
+    my $new = $form1->get_element({ type => $type1, name => $name1 })
+                    ->clone;
+    
+    my $position = $form2->get_element({ type => $type2, name => $name2 });
+    
+    $form2->insert_before( $new, $position );
+
+=head2 insert_after
+
+Arguments: $new_element, $existing_element
+
+Return Value: $new_element
+
+The 1st argument must be the element you want added, the 2nd argument 
+must be the existing element that the new element should be placed after.
+
+    my $new = $form->element(\%specs);
+    
+    my $position = $form->get_element({ type => $type, name => $name });
+    
+    $form->insert_after( $new, $position );
+
+In the first line of the above example, the C<$new> element is initially 
+added to the end of the form. However, the C<insert_after> method 
+reparents the C<$new> element, so it will no longer be on the end of the 
+form. Because of this, if you try to copy an element from one form to 
+another, it will 'steal' the element, instead of copying it. In this case, 
+you must use C<clone>:
+
+    my $new = $form1->get_element({ type => $type1, name => $name1 })
+                    ->clone;
+    
+    my $position = $form2->get_element({ type => $type2, name => $name2 });
+    
+    $form2->insert_after( $new, $position );
+
+=head2 insert_after
+
 =head1 FORM LOGIC AND VALIDATION
 
 L<HTML::FormFu|HTML::FormFu> provides several stages for what is 
@@ -1171,17 +1286,19 @@ the next stage to proceed. If there were any errors, the form should be
 re-displayed to the user, to allow them to input correct values.
 
 Constraints are intended for low-level validation of values, such as 
-"is this value within bounds" or "is this a valid email address".
+"is this an integer?", "is this value within bounds?" or 
+"is this a valid email address?".
 
 Inflators are intended to allow a value to be turned into an appropriate 
 object. The resulting object will be passed to subsequent Validators and 
 Transformers, and will also be returned by L</params> and L</param>.
 
-Validators allow for a more complex validation than Constraints. Validators 
-can be sure that all values have successfully passed all Constraints and have 
-been successfully passed through all Inflators. It is expected that most 
-Validators will be application-specific, and so each will be implemented as 
-a seperate class written by the HTML::FormFu user.
+Validators are intended for higher-level validation, such as 
+business-logic and database constraints such as "is this username unique?".
+Validators are only run if all Constraints and Inflators have run 
+without errors. It is expected that most Validators will be 
+application-specific, and so each will be implemented as a separate class 
+written by the HTML::FormFu user.
 
 =head2 filters
 
@@ -1203,9 +1320,6 @@ If you do not provide a C<name> or C<names> value, the filter will be added
 to all L<fields|HTML::FormFu::Element::_Field> already attached to the form. 
 
 See L<HTML::FormFu::Filter/"CORE FILTERS"> for a list of core filters.
-
-If a C<name> attribute isn't provided, a new filter is created for and 
-added to every field on the form.
 
 If you want to load a filter in a namespace other than 
 C<HTML::FormFu::Filter::>, you can use a fully qualified package-name by 
@@ -1316,6 +1430,45 @@ prefixing it with C<+>.
 
 L</transformer> is an alias for L</transformers>.
 
+=head1 CHANGING DEFAULT BEHAVIOUR
+
+=head2 render_processed_value
+
+The default behaviour when re-displaying a form after a submission, is that 
+the field contains the original unchanged user-submitted value.
+
+If L</render_processed_value> is true, the field value will be the final 
+result after all Filters, Inflators and Transformers have been run. 
+Deflators will also be run on the value.
+
+If you set this on a field with an Inflator, but without an equivalent 
+Deflator, you should ensure that the Inflators stringify back to a useable 
+value, so as not to confuse / annoy the user.
+
+Default Value: false
+
+This method is a special 'inherited accessor', which means it can be set on 
+the form, a block element or a single element. When the value is read, if 
+no value is defined it automatically traverses the element's hierarchy of 
+parents, through any block elements and up to the form, searching for a 
+defined value.
+
+=head2 force_errors
+
+Force a constraint to fail, regardless of user input.
+
+If this is called at runtime, after the form has already been processed, 
+you must called L<HTML::FormFu/process> again before redisplaying the 
+form to the user.
+
+Default Value: false
+
+This method is a special 'inherited accessor', which means it can be set on 
+the form, a block element, an element or a single constraint. When the value 
+is read, if no value is defined it automatically traverses the element's 
+hierarchy of parents, through any block elements and up to the form, 
+searching for a defined value.
+
 =head1 FORM ATTRIBUTES
 
 All attributes are added to the rendered form's start tag.
@@ -1352,7 +1505,7 @@ L</attrs> is an alias for L</attributes>.
 
 =head2 attrs_xml
 
-Provides the same functionality as L<"/attributes">, but values won't be 
+Provides the same functionality as L</attributes>, but values won't be 
 XML-escaped.
 
 L</attrs_xml> is an alias for L</attributes_xml>.
@@ -1372,8 +1525,9 @@ Accepts either a list of key/value pairs, or a hash-ref.
     $form->add_attributes( $key => $value );
     $form->add_attributes( { $key => $value } );
 
-All values are appended to existing values, with a preceeding space 
-character. This is primarily to allow the easy addition of new class names.
+All values are appended to existing values, with a preceding space 
+character. This is primarily to allow the easy addition of new names to the class
+attribute.
 
     $form->attributes({ class => 'foo' });
     
@@ -1387,7 +1541,7 @@ L</add_attrs> is an alias for L</add_attributes>.
 
 =head2 add_attrs_xml
 
-Provides the same functionality as L<"/add_attributes">, but values won't be 
+Provides the same functionality as L</add_attributes>, but values won't be 
 XML-escaped.
 
 L</add_attrs_xml> is an alias for L</add_attributes_xml>.
@@ -1421,12 +1575,12 @@ L</del_attrs> is an alias for L</del_attributes>.
 
 =head2 del_attrs_xml
 
-Provides the same functionality as L<"/del_attributes">, but values won't be 
+Provides the same functionality as L</del_attributes>, but values won't be 
 XML-escaped.
 
 L</del_attrs_xml> is an alias for L</del_attributes_xml>.
 
-The following methods are shortcuts for accessing L<"/attributes"> keys.
+The following methods are shortcuts for accessing L</attributes> keys.
 
 =head2 id
 
@@ -1728,7 +1882,7 @@ Return Value: @valid_names
 
 A (readonly) L<CGI> compatible method.
 
-If a field name if given, in list-context returns any valid values submitted 
+If a field name is given, in list-context returns any valid values submitted 
 for that field, and in scalar-context returns only the first of any valid 
 values submitted for that field.
 
@@ -1903,7 +2057,7 @@ Arguments: [\%constructor_arguments]
 Accepts a hash-ref of arguments passed to the render object constructor for 
 the form and all elements.
 
-The default render class (L<HTML::FormFu::Render::Base>) passes these 
+The default render class (L<HTML::FormFu::Render::base>) passes these 
 arguments to the L<TT|Template> constructor.
 
 The keys C<RELATIVE> and C<RECURSION> are overridden to always be true, as 
@@ -1918,6 +2072,13 @@ the form, a block element or a single element. When the value is read, if
 no value is defined it automatically traverses the element's hierarchy of 
 parents, through any block elements and up to the form, searching for a 
 defined value.
+
+=head2 add_render_class_args
+
+Arguments: [\%constructor_arguments]
+
+Ensures that the hash-ref argument is merged with any existing hash-ref 
+value of L</render_class_args>.
 
 =head2 render_method
 
@@ -1944,6 +2105,7 @@ Arguments: [\%options]
 Return Value: \@elements
 
 Returns all top-level elements in the form (not recursive).
+See L</get_all_elements> for a recursive version.
 
 Accepts both C<name> and C<type> arguments to narrow the returned results.
 
@@ -1951,8 +2113,6 @@ Accepts both C<name> and C<type> arguments to narrow the returned results.
         name => 'foo',
         type => 'Radio',
     });
-
-See L</get_all_elements> for a recursive version.
 
 =head2 get_element
 
@@ -1965,7 +2125,48 @@ Return Value: $element
 Accepts the same arguments as L</get_elements>, but only returns the first 
 element found.
 
+See L</get_all_element> for a recursive version.
+
 =head2 get_all_elements
+
+Arguments: [%options]
+
+Arguments: [\%options]
+
+Return Value: \@elements
+
+Returns all elements in the form recursively.
+
+Optionally accepts both C<name> and C<type> arguments to narrow the returned
+results.
+
+    # return all Text elements
+    
+    $form->get_all_elements({
+        type => 'Text',
+    });
+
+See L</get_elements> for a non-recursive version.
+
+=head2 get_all_element
+
+Arguments: [%options]
+
+Arguments: [\%options]
+
+Return Value: $element
+
+Accepts the same arguments as L</get_all_elements>, but only returns the 
+first element found.
+
+    # return the first Text field found, regardless of whether it's 
+    # within a fieldset or not
+    
+    $form->get_all_element({
+        type => 'Text',
+    });
+
+See L</get_all_elements> for a non-recursive version.
 
 =head2 get_fields
 
@@ -2178,6 +2379,14 @@ config file, which should be loaded by each form.
 
 See L</load_config_file>.
 
+=head1 COOKBOOK
+
+L<HTML::FormFu::Manual::Cookbook>
+
+=head2 UNICODE
+
+L<HTML::FormFu::Manual::Unicode>
+
 =head1 EXAMPLES
 
 =head2 vertically-aligned CSS
@@ -2194,82 +2403,9 @@ by running the following command (while in the distribution root directory).
 
     perl examples/vertically-aligned/vertically-aligned.pl
 
-This uses the C<Template Toolkit|Template> file C<vertically-aligned.tt>, 
+This uses the L<Template Toolkit|Template> file C<vertically-aligned.tt>, 
 and the CSS is defined in files C<vertically-aligned.css> and 
 C<vertically-aligned-ie.css>.
-
-=head1 FREQUENTLY ASKED QUESTIONS (FAQ)
-
-=head2 It's too slow!
-
-Are you using L<Catalyst::Plugin::StackTrace>? This is known to 
-cause performance problems, and we advise disabling it.
-
-You can also tell HTML::FormFu to use L<Template::Alloy> instead of 
-L<Template::Toolkit|Template>, it's mostly compatible, and in most cases 
-provides a reasonable speed increase. You can do this either by setting the 
-C<HTML_FORMFU_TEMPLATE_ALLOY> environment variable to a true value, or with 
-the following yaml config:
-
-    render_class_args:
-      TEMPLATE_ALLOY: 1
-
-=head2 How do I add an onSubmit handler to the form?
-
-    ---
-    attributes_xml: { onsubmit: $javascript }
-
-See L<HTML::FormFu/attributes>.
-
-=head2 How do I add an onChange handler to a form field?
-
-    ---
-    elements:
-      - type: Text
-        attributes_xml: { onchange: $javascript }
-
-See L<HTML::FormFu::Element/attributes>.
-
-=head2 Element X does not have an accessor for Y!
-
-You can add any arbitrary HTML attributes with 
-L<HTML::FormFu::Element/attributes>.
-
-=head2 How can I add a HTML tag which isn't included?
-
-You can use the L<HTML::FormFu::Element::Block> element, and set
-the L<tag|HTML::FormFu::Element::Block/tag> to the tag type you want.
-
-    ---
-    elements:
-      - type: Block
-        tag: span
-
-=head2 How do I check if a textfield contains a URI in a proper format?
-
-Use HTML::FormFu::Constraint::Regex:
-
-    ---
-    elements:
-        - type: Text
-          name: uri
-          constraint:
-            - type: Regex
-              common: [ URI, HTTP, { '-scheme': 'ftp|https?' ]
-
-=head2 If a user enters a value like "  foo  " and we need to redisplay the form, I would like the prefilled value to be "foo".
-
-First you have to use the TrimEdges Filter.
-
-Second to get this behaviour, set 'render_processed_value' to a true value.
-
-You can set this at the form level to effect all fields, or set it at
-the fieldset- or field-level.
-
-One thing to beware is if you have Inflators on a field that create an
-object, you'll need to ensure either that the object stringifies
-correctly, or set "render_processed_value = 0" for that particular
-field.
 
 =head1 SUPPORT
 
@@ -2299,19 +2435,18 @@ L<http://rt.perl.org>.
 The publicly viewable subversion code repository is at 
 L<http://html-formfu.googlecode.com/svn/trunk/HTML-FormFu>.
 
-If you wish to contribute, you'll need a GMAIL email address. Then just 
-ask on the mailing list for commit access.
+If you wish to contribute, you'll need a google account. Then just 
+ask on the mailing list for commit access, giving the email address 
+your account uses.
 
 If you wish to contribute but for some reason really don't want to sign up 
-for a GMAIL account, please post patches to the mailing list (although  
+for a google account, please post patches to the mailing list (although  
 you'll have to wait for someone to commit them). 
 
 If you have commit permissions, use the HTTPS repository url: 
 L<https://html-formfu.googlecode.com/svn/trunk/HTML-FormFu>
 
 =head1 SEE ALSO
-
-L<HTML::FormFu::Dojo>
 
 L<HTML::FormFu::Imager>
 
@@ -2326,6 +2461,8 @@ Carl Franks
 =head1 CONTRIBUTORS
 
 Brian Cassidy
+
+Ruben Fonseca
 
 Daisuke Maki
 
