@@ -1,7 +1,8 @@
 use strict;
 use warnings;
+use Scalar::Util qw/ refaddr /;
 
-use Test::More tests => 4;
+use Test::More tests => 8;
 
 use HTML::FormFu;
 
@@ -9,9 +10,33 @@ my $form = HTML::FormFu->new;
 
 my $fs = $form->element('Fieldset')->id('fs');
 
-$fs->element('Text')->name('foo')->id('foo');
+my $field = $fs->element('Text')->name('foo')->id('foo');
+
+$field->constraint('Required');
 
 my $clone = $form->clone;
+
+$clone->process({ foo => '' });
+
+is(
+    refaddr( $clone->get_element->parent ),
+    refaddr( $clone ),
+);
+
+is(
+    refaddr( $clone->get_field->parent ),
+    refaddr( $clone->get_element ),
+);
+
+is(
+    refaddr( $clone->get_constraint->parent ),
+    refaddr( $clone->get_field ),
+);
+
+is(
+    refaddr( $clone->get_error->parent ),
+    refaddr( $clone->get_field ),
+);
 
 =pod
 

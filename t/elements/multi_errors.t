@@ -6,20 +6,24 @@ use Test::More tests => 1;
 use HTML::FormFu;
 
 my $form = HTML::FormFu->new( {
-        element => {
-            type     => 'Multi',
-            label    => 'My multi',
-            elements => [ {
-                    type => 'Text',
-                    name => 'foo',
-                },
-                {   type => 'Radio',
-                    name => 'bar',
-                } ]
-        },
+        elements => [
+            {
+                type     => 'Multi',
+                label    => 'My multi',
+                elements => [ {
+                        type => 'Text',
+                        name => 'foo',
+                    },
+                    {   type => 'Radio',
+                        name => 'bar',
+                    } ],
+            },
+            { type => 'Submit' },
+        ],
         constraints => ['Required'],
     } );
 
+$form->tt_args( { INCLUDE_PATH => 'share/templates/tt/xhtml' } );
 $form->indicator( sub {1} );
 $form->process(       {} );
 
@@ -33,6 +37,9 @@ my $xhtml = <<EOF;
 <input name="foo" type="text" />
 <input name="bar" type="radio" />
 </span>
+</span>
+<span class="submit">
+<input type="submit" />
 </span>
 </form>
 EOF

@@ -2,17 +2,21 @@ package HTML::FormFu::Element::Blank;
 
 use strict;
 use base 'HTML::FormFu::Element::_Input';
-use Class::C3;
 
-sub new {
-    my $self = shift->next::method(@_);
+sub label_tag {
+    return "";
+}
 
-    $self->filename('blank');
-    $self->field_filename('blank');
-    $self->multi_filename('blank');
-    $self->render_class_suffix('blank');
+sub field_tag {
+    return "";
+}
 
-    return $self;
+sub render {
+    return "";
+}
+
+sub render_data_non_recursive {
+    return ();
 }
 
 1;

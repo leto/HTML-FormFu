@@ -9,7 +9,7 @@ use HTML::FormFu::Util qw/ append_xml_attribute /;
 use Storable qw( dclone );
 use Carp qw( croak );
 
-__PACKAGE__->mk_accessors(qw/ _options /);
+__PACKAGE__->mk_accessors(qw/ _options empty_first /);
 
 sub new {
     my $self = shift->next::method(@_);
@@ -18,6 +18,58 @@ sub new {
     $self->container_attributes( {} );
 
     return $self;
+}
+
+sub process {
+    my ($self) = @_;
+
+    my $context = $self->form->stash->{context};
+    my $args    = $self->db;
+
+    if ( $args && $args->{model} && defined $context ) {
+
+        my $model = $context->model( $args->{model} );
+        return if !defined $model;
+
+        $model = $model->resultset( $args->{resultset} )
+            if defined $args->{resultset};
+
+        my $rs         = $model->result_source;
+        my $id_col     = $args->{id_column};
+        my $label_col  = $args->{label_column};
+        my $condition  = $args->{condition};
+        my $attributes = $args->{attributes} || {};
+
+        if ( !defined $id_col ) {
+            ($id_col) = $rs->primary_columns;
+        }
+
+        if ( !defined $label_col ) {
+
+            # use first text column
+            ($label_col)
+                = grep { $rs->column_info($_)->{data_type} =~ /text|varchar/i }
+                $rs->columns;
+        }
+        $label_col = $id_col if !defined $label_col;
+
+        $attributes->{'-columns'} = [ $id_col, $label_col ];
+
+        my $result = $model->search( $condition, $attributes );
+
+        my @defaults;
+
+        if ( $args->{localize_label} ) {
+            @defaults
+                = map { { value => $_->id_col, label_loc => $_->label_col, } }
+                $result->all;
+        }
+        else {
+            @defaults = map { [ $_->$id_col, $_->$label_col ] } $result->all;
+        }
+
+        $self->options( \@defaults );
+    }
 }
 
 sub options {
@@ -29,6 +81,16 @@ sub options {
     if ( defined $arg ) {
         eval { @options = @$arg };
         croak "options argument must be an array-ref" if $@;
+
+        if ( $self->empty_first ) {
+            push @new,
+                {
+                value            => '',
+                label            => '',
+                attributes       => {},
+                label_attributes => {},
+                };
+        }
 
         for my $item (@options) {
             push @new, $self->_parse_option($item);
@@ -53,12 +115,16 @@ sub _parse_option {
             }
             my %group = ( group => \@new );
             $group{label} = $item->{label};
+            $group{label} = $self->form->localize( $item->{label_loc} )
+                if defined $item->{label_loc};
             $group{attributes} = $item->{attributes} || {};
 
             return \%group;
         }
         $item->{attributes}       = {} if !exists $item->{attributes};
         $item->{label_attributes} = {} if !exists $item->{label_attributes};
+        $item->{label} = $self->form->localize( $item->{label_loc} )
+            if defined $item->{label_loc};
         return $item;
     }
 
@@ -84,6 +150,10 @@ sub values {
     if ( defined $arg ) {
         eval { @values = @$arg };
         croak "values argument must be an array-ref" if $@;
+    }
+
+    if ( $self->empty_first ) {
+        unshift @values, '';
     }
 
     @new = (
@@ -116,6 +186,10 @@ sub value_range {
     my $end   = pop @values;
     my $start = pop @values;
 
+    if ( $self->empty_first ) {
+        unshift @values, '';
+    }
+
     return $self->values( [ @values, $start .. $end ] );
 }
 
@@ -126,7 +200,7 @@ sub prepare_attrs {
     my $default   = $self->default;
     my $value
         = defined $self->name
-        ? $self->form->input->{ $self->name }
+        ? $self->get_nested_hash_value( $self->form->input, $self->nested_name )
         : undef;
 
     for my $option ( @{ $render->{options} } ) {
@@ -145,7 +219,7 @@ sub prepare_attrs {
     return;
 }
 
-sub render {
+sub render_data_non_recursive {
     my $self = shift;
 
     my $render = $self->next::method( {
@@ -153,6 +227,31 @@ sub render {
             @_ ? %{ $_[0] } : () } );
 
     return $render;
+}
+
+sub string {
+    my ( $self, $args ) = @_;
+
+    $args ||= {};
+
+    my $render
+        = exists $args->{render_data}
+        ? $args->{render_data}
+        : $self->render_data;
+
+    # field wrapper template - start
+
+    my $html = $self->_string_field_start($render);
+
+    # input_tag template
+
+    $html .= $self->_string_field($render);
+
+    # field wrapper template - end
+
+    $html .= $self->_string_field_end($render);
+
+    return $html;
 }
 
 sub as {
@@ -236,6 +335,9 @@ An example of Select optgroups:
               - [2a, 'item 2a']
               - [2b, 'item 2b']
 
+The usage of label_loc instead of label is supported to translate a given
+string. label_loc is supported for items and option groups.
+
 =head2 values
 
 Arguments: \@values
@@ -272,6 +374,12 @@ Arguments: \@values
 Similar to L</values>, but the last 2 values are expanded to a range. Any 
 preceeding values are used literally, allowing the common empty first item 
 in select menus.
+
+=head2 empty_first
+
+If true, then a blank option will be inserted at the start of the option list
+(regardless of whether L</options>, L</values> or L</value_range> was used to
+populate the options).
 
 =head1 SEE ALSO
 

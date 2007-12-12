@@ -69,7 +69,11 @@ sub rows {
     return $self;
 }
 
-sub render {
+sub render_data {
+    return shift->render_data_non_recursive(@_);
+}
+
+sub render_data_non_recursive {    # though it is really recursive
     my $self = shift;
 
     my $odd  = $self->odd_class;
@@ -96,9 +100,11 @@ sub render {
         $i++;
     }
 
-    my $render = $self->next::method(@_);
+    my $render = $self->next::method( {
+            elements => [ map { $_->render_data } @{ $self->_elements } ],
+            @_ ? %{ $_[0] } : () } );
 
-    append_xml_attribute( $render->attributes, 'class', lc $self->type );
+    append_xml_attribute( $render->{attributes}, 'class', lc $self->type );
 
     return $render;
 }

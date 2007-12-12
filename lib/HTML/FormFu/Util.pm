@@ -17,6 +17,7 @@ our @EXPORT_OK = qw/
     literal
     _get_elements
     process_attrs
+    split_name
     /;
 
 sub _get_elements {
@@ -29,6 +30,16 @@ sub _get_elements {
 
     if ( exists $args->{type} ) {
         @$elements = grep { $_->type eq $args->{type} } @$elements;
+    }
+
+    if ( exists $args->{nested_name} ) {
+        my $nn;
+
+        @$elements = grep {
+                   $_->can('nested_name')
+                && defined( $nn = $_->nested_name )
+                && $nn eq $args->{nested_name}
+        } @$elements;
     }
 
     return $elements;
@@ -46,12 +57,12 @@ sub append_xml_attribute {
         my $orig = 'string';
         $orig = 'literal'
             if blessed $attrs->{$key}
-            && $attrs->{$key}->isa('HTML::FormFu::Literal');
+                && $attrs->{$key}->isa('HTML::FormFu::Literal');
 
         my $new = 'string';
         $new = 'literal'
             if blessed $value
-            && $value->isa('HTML::FormFu::Literal');
+                && $value->isa('HTML::FormFu::Literal');
 
         $attrs->{$key} = $dispatcher{$orig}->{$new}->( $attrs->{$key}, $value );
     }
@@ -88,12 +99,12 @@ sub has_xml_attribute {
         my $orig = 'string';
         $orig = 'literal'
             if blessed $attrs->{$key}
-            && $attrs->{$key}->isa('HTML::FormFu::Literal');
+                && $attrs->{$key}->isa('HTML::FormFu::Literal');
 
         my $new = 'string';
         $new = 'literal'
             if blessed $value
-            && $value->isa('HTML::FormFu::Literal');
+                && $value->isa('HTML::FormFu::Literal');
 
         return $dispatcher{$orig}->{$new}->( $attrs->{$key}, $value );
     }
@@ -107,14 +118,16 @@ sub _has_subs {
             string => sub {
                 my $x = "$_[0]";
                 my $y = xml_escape("$_[1]");
-                return $x =~ /^\Q$y\E ?/
+                return
+                       $x =~ /^\Q$y\E ?/
                     || $x =~ / \Q$y\E /
                     || $x =~ / ?\Q$y\E$/;
             },
             literal => sub {
                 my $x = "$_[0]";
                 my $y = "$_[1]";
-                return $x =~ /^\Q$y\E ?/
+                return
+                       $x =~ /^\Q$y\E ?/
                     || $x =~ / \Q$y\E /
                     || $x =~ / ?\Q$y\E$/;
             },
@@ -122,14 +135,16 @@ sub _has_subs {
         string => {
             string => sub {
                 my ( $x, $y ) = @_;
-                return $x =~ /^\Q$y\E ?/
+                return
+                       $x =~ /^\Q$y\E ?/
                     || $x =~ / \Q$y\E /
                     || $x =~ / ?\Q$y\E$/;
             },
             literal => sub {
                 my $x = xml_escape( $_[0] );
                 my $y = "$_[1]";
-                return $x =~ /^\Q$y\E ?/
+                return
+                       $x =~ /^\Q$y\E ?/
                     || $x =~ / \Q$y\E /
                     || $x =~ / ?\Q$y\E$/;
             },
@@ -149,12 +164,12 @@ sub remove_xml_attribute {
         my $orig = 'string';
         $orig = 'literal'
             if blessed $attrs->{$key}
-            && $attrs->{$key}->isa('HTML::FormFu::Literal');
+                && $attrs->{$key}->isa('HTML::FormFu::Literal');
 
         my $new = 'string';
         $new = 'literal'
             if blessed $value
-            && $value->isa('HTML::FormFu::Literal');
+                && $value->isa('HTML::FormFu::Literal');
 
         $attrs->{$key} = $dispatcher{$orig}->{$new}->( $attrs->{$key}, $value );
     }
@@ -294,6 +309,47 @@ sub process_attrs {
         if length $xml;
 
     return $xml;
+}
+
+sub split_name {
+    my ($name) = @_;
+
+    croak "split_name requires 1 arg" if @_ != 1;
+
+    return () if !defined $name;
+
+    if ( $name =~ /^ \w+ \[ /x ) {
+
+        # copied from Catalyst::Plugin::Params::Nested::Expander
+
+        return grep {defined} (
+            $name =~ /
+            ^  (\w+)      # root param
+            | \[ (\w+) \] # nested
+        /gx
+        );
+    }
+    elsif ( $name =~ /\./ ) {
+
+        # Copied from CGI::Expand
+
+        # m// splits on unescaped '.' chars. Can't fail b/c \G on next
+        # non ./ * -> escaped anything -> non ./ *
+        $name =~ m/^ ( [^\\\.]* (?: \\(?:.|$) [^\\\.]* )* ) /gx;
+        my $first = $1;
+        $first =~ s/\\(.)/$1/g;    # remove escaping
+
+        my (@segments) = $name =~
+
+            # . -> ( non ./ * -> escaped anything -> non ./ * )
+            m/\G (?:[\.]) ( [^\\\.]* (?: \\(?:.|$) [^\\\.]* )* ) /gx;
+
+        # Escapes removed later, can be used to avoid using as array index
+
+        return ( $first, @segments );
+    }
+
+    return ($name);
 }
 
 1;

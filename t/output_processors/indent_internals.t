@@ -5,7 +5,7 @@ use Test::More tests => 1;
 
 use HTML::FormFu;
 
-my $form = HTML::FormFu->new;
+my $form = HTML::FormFu->new({ tt_args => { INCLUDE_PATH => 'share/templates/tt/xhtml' } });
 
 my $proc = $form->output_processor( {
         type   => 'Indent',
@@ -29,6 +29,9 @@ my $input = <<INPUT;
 <textarea name="textarea" cols="40" rows="20">foo
 bar
 </textarea>
+</span>
+<span class="textarea">
+<textarea name="empty_textarea" cols="40" rows="20"></textarea>
 </span>
 <span class="select">
 <select name="select">
@@ -61,6 +64,9 @@ my $output = <<OUTPUT;
             <textarea name="textarea" cols="40" rows="20">foo
 bar
 </textarea>
+        </span>
+        <span class="textarea">
+            <textarea name="empty_textarea" cols="40" rows="20"></textarea>
         </span>
         <span class="select">
             <select name="select">

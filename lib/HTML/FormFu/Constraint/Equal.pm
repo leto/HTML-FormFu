@@ -7,21 +7,23 @@ sub process {
     my ( $self, $params ) = @_;
 
     # check when condition
-    return unless $self->_process_when( $params );
+    return unless $self->_process_when($params);
 
     my $others = $self->others;
     return if !defined $others;
 
-    my $name  = $self->name;
-    my $value = $params->{$name};
+    my $value = $self->get_nested_hash_value( $params, $self->nested_name );
+
     my @names = ref $others ? @{$others} : ($others);
     my @failed;
 
-    for my $eq_name (@names) {
+    for my $name (@names) {
 
-        my $ok = _values_eq( $value, $params->{$eq_name} );
+        my $other_value = $self->get_nested_hash_value( $params, $name );
 
-        push @failed, $eq_name
+        my $ok = _values_eq( $value, $other_value );
+
+        push @failed, $name
             if $self->not ? $ok : !$ok;
     }
 
@@ -39,6 +41,8 @@ sub _values_eq {
     # so the value is either a string or an arrayref of strings
 
     return 1 if !defined $v1 && !defined $v2;
+
+    return if !defined $v1 || !defined $v2;
 
     if ( !ref $v1 && !ref $v2 ) {
         return 1 if $v1 eq $v2;

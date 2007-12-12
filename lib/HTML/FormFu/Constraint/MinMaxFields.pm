@@ -22,7 +22,7 @@ sub process {
     my $count = 0;
 
     # check when condition
-    return unless $self->_process_when( $params );
+    return unless $self->_process_when($params);
 
     # others are needed
     my $others = $self->others;
@@ -35,11 +35,12 @@ sub process {
     $max = 1 + scalar @$others if !defined $max;
 
     # get field names to check
-    my @names = ( $self->name );
+    my @names = ( $self->nested_name );
     push @names, ref $others ? @{$others} : $others;
 
     for my $name (@names) {
-        my $value = $params->{$name};
+        my $value = $self->get_nested_hash_value( $params, $name );
+
         if ( ref $value ) {
             eval { my @x = @$value };
             croak $@ if $@;

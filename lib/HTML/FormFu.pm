@@ -1,5 +1,6 @@
 package HTML::FormFu;
 use strict;
+use base 'HTML::FormFu::base';
 
 use HTML::FormFu::Attribute qw/
     mk_attrs mk_attr_accessors
@@ -14,10 +15,12 @@ use HTML::FormFu::Localize;
 use HTML::FormFu::ObjectUtil qw/
     :FORM_AND_BLOCK
     :FORM_AND_ELEMENT
-    populate load_config_file insert_before insert_after form
-    _render_class clone stash constraints_from_dbic parent /;
+    populate load_config_file form
+    clone stash constraints_from_dbic parent
+    get_nested_hash_value set_nested_hash_value nested_hash_key_exists /;
 use HTML::FormFu::Util qw/ require_class _get_elements xml_escape
-    _parse_args /;
+    split_name _parse_args process_attrs /;
+
 use List::MoreUtils qw/ uniq /;
 use Scalar::Util qw/ blessed refaddr weaken /;
 use Storable qw/ dclone /;
@@ -26,9 +29,11 @@ use Carp qw/ croak /;
 
 use overload
     'eq' => sub { refaddr $_[0] eq refaddr $_[1] },
+    'ne' => sub { refaddr $_[0] ne refaddr $_[1] },
     '==' => sub { refaddr $_[0] eq refaddr $_[1] },
-    '""'     => sub { return shift->render },
-    bool     => sub {1},
+    '!=' => sub { refaddr $_[0] ne refaddr $_[1] },
+    '""' => sub { return shift->render },
+    bool => sub {1},
     fallback => 1;
 
 __PACKAGE__->mk_attrs(qw/ attributes /);
@@ -40,7 +45,8 @@ __PACKAGE__->mk_accessors(
         element_defaults query_type languages force_error_message
         localize_class submitted query input _auto_fieldset
         _elements _processed_params _valid_names
-        render_class_suffix _output_processors /
+        _output_processors tt_module
+        nested_name nested_subscript model_class _model /
 );
 
 __PACKAGE__->mk_output_accessors(qw/ form_error_message /);
@@ -49,13 +55,10 @@ __PACKAGE__->mk_inherited_accessors(
     qw/ auto_id auto_label auto_error_class auto_error_message
         auto_constraint_class auto_inflator_class auto_validator_class
         auto_transformer_class
-        render_class render_class_prefix
-        render_method
-        render_processed_value force_errors /
+        render_method render_processed_value force_errors repeatable_count /
 );
 
-__PACKAGE__->mk_inherited_merging_accessors(
-    qw/ render_class_args config_callback /);
+__PACKAGE__->mk_inherited_merging_accessors(qw/ tt_args config_callback /);
 
 *elements          = \&element;
 *constraints       = \&constraint;
@@ -67,7 +70,7 @@ __PACKAGE__->mk_inherited_merging_accessors(
 *output_processors = \&output_processor;
 *loc               = \&localize;
 
-our $VERSION = '0.01006';
+our $VERSION = '0.02000';
 $VERSION = eval $VERSION;
 
 Class::C3::initialize();
@@ -82,25 +85,25 @@ sub new {
     my $self = bless {}, $class;
 
     my %defaults = (
-        _elements           => [],
-        _output_processors  => [],
-        _valid_names        => [],
-        _processed_params   => {},
-        input               => {},
-        stash               => {},
-        action              => '',
-        method              => 'post',
-        render_class_prefix => 'HTML::FormFu::Render',
-        render_class_suffix => 'Form',
-        render_class_args   => {},
-        filename            => 'form',
-        element_defaults    => {},
-        render_method       => 'xhtml',
-        query_type          => 'CGI',
-        languages           => ['en'],
-        localize_class      => 'HTML::FormFu::I18N',
-        auto_error_class    => 'error_%s_%t',
-        auto_error_message  => 'form_%s_%t',
+        _elements          => [],
+        _output_processors => [],
+        _valid_names       => [],
+        _processed_params  => {},
+        input              => {},
+        stash              => {},
+        action             => '',
+        method             => 'post',
+        filename           => 'form',
+        element_defaults   => {},
+        render_method      => 'string',
+        tt_args            => {},
+        tt_module          => 'Template',
+        query_type         => 'CGI',
+        languages          => ['en'],
+        localize_class     => 'HTML::FormFu::I18N',
+        auto_error_class   => 'error_%s_%t',
+        auto_error_message => 'form_%s_%t',
+        model_class        => 'DBIC',
     );
 
     $self->populate( \%defaults );
@@ -128,20 +131,48 @@ sub auto_fieldset {
 
 sub default_values {
     my $self = shift;
-    
+
     my %values;
     eval { %values = %{ $_[0] } };
     croak "default_values argument must be a hashref" if $@;
-    
-    for my $field (@{ $self->get_fields }) {
-        my $field_name = $field->name;
-        next unless defined $field_name;
-        next unless exists $values{$field_name};
-        
-        $field->default( $values{$field_name} );
+
+    for my $field ( @{ $self->get_fields } ) {
+        my $name = $field->nested_name;
+        next unless defined $name;
+        next unless exists $values{$name};
+
+        $field->default( $values{$name} );
     }
-    
+
     return $self;
+}
+
+sub model {
+    my ($self) = @_;
+
+    if ( defined( my $model = $self->_model ) ) {
+        return $model;
+    }
+
+    my $class = "HTML::FormFu::Model::" . $self->model_class;
+
+    require_class($class);
+
+    $self->_model($class);
+
+    return $class;
+}
+
+sub defaults_from_model {
+    my $self = shift;
+
+    return $self->model->defaults_from_model( $self, @_ );
+}
+
+sub save_to_model {
+    my $self = shift;
+
+    return $self->model->save_to_model( $self, @_ );
 }
 
 sub process {
@@ -162,7 +193,7 @@ sub process {
     }
 
     if ( defined $query && !blessed($query) ) {
-        $query = HTML::FormFu::FakeQuery->new($query);
+        $query = HTML::FormFu::FakeQuery->new( $self, $query );
 
         $self->query($query);
     }
@@ -184,22 +215,34 @@ sub process {
 
     return if !$submitted;
 
-    my %params;
+    my %param;
+    my @params = $query->param;
 
-    for my $param ( $query->param ) {
+    for my $field ( @{ $self->get_fields } ) {
+        my $name = $field->nested_name;
 
-        # don't allow names without a matching field
-        next unless defined $self->get_field($param);
+        next if !defined $name;
+        next if !grep { $name eq $_ } @params;
 
-        my @values = $query->param($param);
-        $params{$param} = @values > 1 ? \@values : $values[0];
+        if ( $field->nested ) {
+            my @values = $query->param($name);
+
+            my $value = @values > 1 ? \@values : $values[0];
+
+            $self->set_nested_hash_value( \%param, $name, $value );
+        }
+        else {
+            my @values = $query->param($name);
+
+            $param{$name} = @values > 1 ? \@values : $values[0];
+        }
     }
 
     for my $field ( @{ $self->get_fields } ) {
-        $field->process_input( \%params );
+        $field->process_input( \%param );
     }
 
-    $self->input( \%params );
+    $self->input( \%param );
 
     $self->_process_input;
 
@@ -217,8 +260,8 @@ sub _submitted {
     }
     elsif ( !defined $indi ) {
         my @names = uniq(
-            map      { $_->name }
-                grep { defined $_->name } @{ $self->get_fields } );
+            grep    {defined}
+                map { $_->nested_name } @{ $self->get_fields } );
 
         $code = sub {
             grep { defined $query->param($_) } @names;
@@ -262,15 +305,14 @@ sub _build_params {
     my $input = $self->input;
     my %params;
 
-    my @names = uniq(
-        sort
-            map  { $_->name }
-            grep { defined $_->name } @{ $self->get_fields } );
+    for my $field ( @{ $self->get_fields } ) {
+        my $name = $field->nested_name;
 
-    for my $name (@names) {
-        next if !exists $input->{$name};
+        next if !defined $name;
+        next if exists $params{$name};
+        next if !$self->nested_hash_key_exists( $self->input, $name );
 
-        my $input = exists $input->{$name} ? $input->{$name} : undef;
+        my $input = $self->get_nested_hash_value( $self->input, $name );
 
         if ( ref $input eq 'ARRAY' ) {
 
@@ -279,7 +321,7 @@ sub _build_params {
             $input = [@$input];
         }
 
-        $params{$name} = $input;
+        $self->set_nested_hash_value( \%params, $name, $input, $name );
     }
 
     $self->_processed_params( \%params );
@@ -292,9 +334,10 @@ sub _process_file_uploads {
 
     my @names = uniq(
         sort
-            map  { $_->name }
+            grep {defined}
+            map  { $_->nested_name }
             grep { $_->isa('HTML::FormFu::Element::File') }
-            grep { defined $_->name } @{ $self->get_fields } );
+            @{ $self->get_fields } );
 
     if (@names) {
         my $query_class = $self->query_type;
@@ -307,11 +350,11 @@ sub _process_file_uploads {
         my $input  = $self->input;
 
         for my $name (@names) {
-            next if !exists $input->{$name};
+            next if !$self->nested_hash_key_exists( $input, $name );
 
             my $values = $query_class->parse_uploads( $self, $name );
 
-            $params->{$name} = $values;
+            $self->set_nested_hash_value( $params, $name, $values );
         }
     }
 
@@ -323,12 +366,13 @@ sub _filter_input {
 
     my $params = $self->_processed_params;
 
-    for my $name ( keys %$params ) {
-        next if !exists $self->input->{$name};
+    for my $filter ( @{ $self->get_filters } ) {
+        my $name = $filter->nested_name;
 
-        for my $filter ( @{ $self->get_filters( { name => $name } ) } ) {
-            $filter->process( $self, $params );
-        }
+        next if !defined $name;
+        next if !$self->nested_hash_key_exists( $params, $name );
+
+        $filter->process( $self, $params );
     }
 
     return;
@@ -352,7 +396,7 @@ sub _constrain_input {
 
         for my $error (@errors) {
             $error->parent( $constraint->parent ) if !$error->parent;
-            $error->constraint($constraint)       if !$error->constraint;
+            $error->constraint($constraint) if !$error->constraint;
 
             $error->parent->add_error($error);
         }
@@ -366,33 +410,34 @@ sub _inflate_input {
 
     my $params = $self->_processed_params;
 
-    for my $name ( keys %$params ) {
-        next if !exists $self->input->{$name};
+    for my $inflator ( @{ $self->get_inflators } ) {
+        my $name = $inflator->nested_name;
+        next if !defined $name;
 
-        next if $self->has_errors($name);
+        next if !$self->nested_hash_key_exists( $params, $name );
+        next if grep {defined} @{ $inflator->parent->get_errors };
 
-        my $value = $params->{$name};
+        my $value = $self->get_nested_hash_value( $params, $name );
 
-        for my $inflator ( @{ $self->get_inflators( { name => $name } ) } ) {
-            my @errors;
+        my @errors;
 
-            ( $value, @errors ) = eval { $inflator->process($value); };
-            if ( blessed $@ && $@->isa('HTML::FormFu::Exception::Inflator') ) {
-                push @errors, $@;
-            }
-            elsif ($@) {
-                push @errors, HTML::FormFu::Exception::Inflator->new;
-            }
+        ( $value, @errors ) = eval { $inflator->process($value) };
 
-            for my $error (@errors) {
-                $error->parent( $inflator->parent ) if !$error->parent;
-                $error->inflator($inflator)         if !$error->inflator;
-
-                $error->parent->add_error($error);
-            }
+        if ( blessed $@ && $@->isa('HTML::FormFu::Exception::Inflator') ) {
+            push @errors, $@;
+        }
+        elsif ($@) {
+            push @errors, HTML::FormFu::Exception::Inflator->new;
         }
 
-        $params->{$name} = $value;
+        for my $error (@errors) {
+            $error->parent( $inflator->parent ) if !$error->parent;
+            $error->inflator($inflator) if !$error->inflator;
+
+            $error->parent->add_error($error);
+        }
+
+        $self->set_nested_hash_value( $params, $name, $value );
     }
 
     return;
@@ -403,26 +448,26 @@ sub _validate_input {
 
     my $params = $self->_processed_params;
 
-    for my $name ( keys %$params ) {
-        next if !exists $self->input->{$name};
+    for my $validator ( @{ $self->get_validators } ) {
+        my $name = $validator->nested_name;
+        next if !defined $name;
+        next if !$self->nested_hash_key_exists( $params, $name );
+        next if grep {defined} @{ $validator->parent->get_errors };
 
-        for my $validator ( @{ $self->get_validators( { name => $name } ) } ) {
-            next if $self->has_errors( $validator->field->name );
+        my @errors = eval { $validator->process($params) };
 
-            my @errors = eval { $validator->process($params); };
-            if ( blessed $@ && $@->isa('HTML::FormFu::Exception::Validator') ) {
-                push @errors, $@;
-            }
-            elsif ($@) {
-                push @errors, HTML::FormFu::Exception::Validator->new;
-            }
+        if ( blessed $@ && $@->isa('HTML::FormFu::Exception::Validator') ) {
+            push @errors, $@;
+        }
+        elsif ($@) {
+            push @errors, HTML::FormFu::Exception::Validator->new;
+        }
 
-            for my $error (@errors) {
-                $error->parent( $validator->parent ) if !$error->parent;
-                $error->validator($validator)        if !$error->validator;
+        for my $error (@errors) {
+            $error->parent( $validator->parent ) if !$error->parent;
+            $error->validator($validator) if !$error->validator;
 
-                $error->parent->add_error($error);
-            }
+            $error->parent->add_error($error);
         }
     }
 
@@ -434,37 +479,33 @@ sub _transform_input {
 
     my $params = $self->_processed_params;
 
-    for my $name ( keys %$params ) {
-        next if !exists $self->input->{$name};
+    for my $transformer ( @{ $self->get_transformers } ) {
+        my $name = $transformer->nested_name;
+        next if !defined $name;
+        next if !$self->nested_hash_key_exists( $params, $name );
+        next if grep {defined} @{ $transformer->parent->get_errors };
 
-        my $value = $params->{$name};
+        my $value = $self->get_nested_hash_value( $params, $name );
 
-        for my $transformer (
-            @{ $self->get_transformers( { name => $name } ) } )
-        {
-            next if $self->has_errors( $transformer->field->name );
+        my @errors;
 
-            my @errors;
+        ( $value, @errors ) = eval { $transformer->process( $value, $params ) };
 
-            ( $value, @errors )
-                = eval { $transformer->process( $value, $params ); };
-            if ( blessed $@ && $@->isa('HTML::FormFu::Exception::Transformer') )
-            {
-                push @errors, $@;
-            }
-            elsif ($@) {
-                push @errors, HTML::FormFu::Exception::Transformer->new;
-            }
-
-            for my $error (@errors) {
-                $error->parent( $transformer->parent ) if !$error->parent;
-                $error->transformer($transformer)      if !$error->transformer;
-
-                $error->parent->add_error($error);
-            }
+        if ( blessed $@ && $@->isa('HTML::FormFu::Exception::Transformer') ) {
+            push @errors, $@;
+        }
+        elsif ($@) {
+            push @errors, HTML::FormFu::Exception::Transformer->new;
         }
 
-        $self->_processed_params->{$name} = $value;
+        for my $error (@errors) {
+            $error->parent( $transformer->parent ) if !$error->parent;
+            $error->transformer($transformer) if !$error->transformer;
+
+            $error->parent->add_error($error);
+        }
+
+        $self->set_nested_hash_value( $params, $name, $value );
     }
 
     return;
@@ -473,10 +514,26 @@ sub _transform_input {
 sub _build_valid_names {
     my ($self) = @_;
 
+    my $params = $self->_processed_params;
     my @errors = $self->has_errors;
     my @names;
-    push @names, keys %{ $self->input };
-    push @names, keys %{ $self->_processed_params };
+    my %non_param;
+
+    for my $field ( @{ $self->get_fields } ) {
+        my $name = $field->nested_name;
+        next if !defined $name;
+
+        if ( $field->non_param ) {
+            $non_param{$name} = 1;
+        }
+        elsif ( $self->nested_hash_key_exists( $params, $name ) ) {
+            push @names, $name;
+        }
+    }
+
+    push @names, grep { ref $params->{$_} ne 'HASH' }
+        grep { !exists $non_param{$_} }
+        keys %$params;
 
     @names = uniq( sort @names );
 
@@ -492,6 +549,53 @@ CHECK: for my $name (@names) {
     $self->_valid_names( \@valid );
 
     return;
+}
+
+sub _hash_keys {
+    my ( $hash, $subscript ) = @_;
+    my @names;
+
+    for my $key ( keys %$hash ) {
+        if ( ref $hash->{$key} eq 'HASH' ) {
+            push @names,
+                map { $subscript ? "${key}[${_}]" : "$key.$_" }
+                _hash_keys( $hash->{$key}, $subscript );
+        }
+        elsif ( ref $hash->{$key} eq 'ARRAY' ) {
+            push @names,
+                map { $subscript ? "${key}[${_}]" : "$key.$_" }
+                _array_indices( $hash->{$key}, $subscript );
+        }
+        else {
+            push @names, $key;
+        }
+    }
+
+    return @names;
+}
+
+sub _array_indices {
+    my ( $array, $subscript ) = @_;
+
+    my @names;
+
+    for my $i ( 0 .. $#{$array} ) {
+        if ( ref $array->[$i] eq 'HASH' ) {
+            push @names,
+                map { $subscript ? "${i}[${_}]" : "$i.$_" }
+                _hash_keys( $array->[$i], $subscript );
+        }
+        elsif ( ref $array->[$i] eq 'ARRAY' ) {
+            push @names,
+                map { $subscript ? "${i}[${_}]" : "$i.$_" }
+                _array_indices( $array->[$i], $subscript );
+        }
+        else {
+            push @names, $i;
+        }
+    }
+
+    return @names;
 }
 
 sub submitted_and_valid {
@@ -510,11 +614,12 @@ sub params {
 
     for my $name (@names) {
         my @values = $self->param($name);
+
         if ( @values > 1 ) {
-            $params{$name} = \@values;
+            $self->set_nested_hash_value( \%params, $name, \@values );
         }
         else {
-            $params{$name} = $values[0];
+            $self->set_nested_hash_value( \%params, $name, $values[0] );
         }
     }
 
@@ -533,7 +638,8 @@ sub param {
         # only return a valid value
         my $name  = shift;
         my $valid = $self->valid($name);
-        my $value = $self->_processed_params->{$name};
+        my $value
+            = $self->get_nested_hash_value( $self->_processed_params, $name );
 
         if ( !defined $valid || !defined $value ) {
             return;
@@ -560,7 +666,27 @@ sub valid {
 
     if (@_) {
         my $name = shift;
-        return 1 if grep {/\Q$name/} @valid;
+
+        return 1 if grep { $name eq $_ } @valid;
+
+        # not found - see if it's the name of a nested block
+        my $parent;
+        if ( defined $self->nested_name && $self->nested_name eq $name ) {
+            $parent = $self;
+        }
+        else {
+            ($parent)
+                = grep { $_->isa('HTML::FormFu::Element::Block') }
+                @{ $self->get_all_elements( { nested_name => $name, } ) };
+        }
+
+        if ( defined $parent ) {
+            my $fail = grep {defined}
+                map { @{ $_->get_errors } } @{ $parent->get_fields };
+
+            return 1 if !$fail;
+        }
+
         return;
     }
 
@@ -573,9 +699,9 @@ sub has_errors {
 
     return if !$self->submitted;
 
-    my @names = map { $_->name }
+    my @names = map { $_->nested_name }
         grep { @{ $_->get_errors } }
-        grep { defined $_->name } @{ $self->get_fields };
+        grep { defined $_->nested_name } @{ $self->get_fields };
 
     if (@_) {
         my $name = shift;
@@ -602,38 +728,113 @@ sub add_valid {
     return $value;
 }
 
-sub render {
-    my ($self) = @_;
+sub render_data {
+    my $self = shift;
 
-    my $class = $self->_render_class;
-    require_class($class);
-
-    my $render = $class->new( {
-            render_class_args   => $self->render_class_args,
-            render_class_suffix => $self->render_class_suffix,
-            render_method       => $self->render_method,
-            filename            => $self->filename,
-            javascript          => $self->javascript,
-            javascript_src      => $self->javascript_src,
-            force_error_message => $self->force_error_message,
-            form_error_message  => xml_escape( $self->form_error_message ),
-            _elements           => [ map { $_->render } @{ $self->_elements } ],
-        } );
-
-    $render->parent($self);
-
-    $render->attributes( xml_escape $self->attributes );
-    $render->stash( $self->stash );
+    my $render = $self->render_data_non_recursive( {
+            elements => [ map { $_->render_data } @{ $self->_elements } ],
+            @_ ? %{ $_[0] } : () } );
 
     return $render;
 }
 
-sub start_form {
-    return shift->render->start_form;
+sub render_data_non_recursive {
+    my $self = shift;
+
+    my %render = (
+        filename       => $self->filename,
+        javascript     => $self->javascript,
+        javascript_src => $self->javascript_src,
+        attributes     => xml_escape( $self->attributes ),
+        stash          => $self->stash,
+        @_ ? %{ $_[0] } : () );
+
+    weaken( $render{self} );
+
+    if ( $self->force_error_message
+        || ( $self->has_errors && defined $self->form_error_message ) )
+    {
+        $render{form_error_message} = xml_escape( $self->form_error_message );
+    }
+
+    return \%render;
 }
 
-sub end_form {
-    return shift->render->end_form;
+sub string {
+    my ( $self, $args ) = @_;
+
+    $args ||= {};
+
+    # start_form template
+
+    my $render
+        = exists $args->{render_data}
+        ? $args->{render_data}
+        : $self->render_data_non_recursive;
+
+    my $html = sprintf "<form%s>", process_attrs( $render->{attributes} );
+
+    if ( defined $render->{form_error_message} ) {
+        $html .= sprintf qq{\n<div class="form_error_message">%s</div>},
+            $render->{form_error_message};
+    }
+
+    if ( defined $render->{javascript_src} ) {
+        my $src = $render->{javascript_src};
+
+        $src = [$src] if ref $src ne 'ARRAY';
+
+        for my $file (@$src) {
+            $html .= sprintf
+                qq{\n<script type="text/javascript" src="%s">\n</script>},
+                $file;
+        }
+    }
+
+    if ( defined $render->{javascript} ) {
+        $html .= sprintf
+            qq{\n<script type="text/javascript">\n%s\n</script>},
+            $render->{javascript};
+    }
+
+    # form template
+
+    $html .= "\n";
+
+    for my $elem ( @{ $self->get_elements } ) {
+
+        # call render, so that child elements can use a different renderer
+        my $elem_html = $elem->render;
+
+        # skip Blank fields
+        if ( length $elem_html ) {
+            $html .= $elem_html . "\n";
+        }
+    }
+
+    # end_form template
+
+    $html .= "</form>\n";
+
+    return $html;
+}
+
+sub start {
+    my ($self) = @_;
+
+    return $self->tt( {
+            filename    => 'start_form',
+            render_data => $self->render_data_non_recursive,
+        } );
+}
+
+sub end {
+    my ($self) = @_;
+
+    return $self->tt( {
+            filename    => 'end_form',
+            render_data => $self->render_data_non_recursive,
+        } );
 }
 
 sub hidden_fields {
@@ -655,34 +856,28 @@ sub output_processor {
     }
 
     return @return == 1 ? $return[0] : @return;
-};
+}
 
 sub _single_output_processor {
     my ( $self, $arg ) = @_;
-    my @items;
 
-    if ( ref $arg eq 'HASH' ) {
-        push @items, $arg;
+    if ( !ref $arg ) {
+        $arg = { type => $arg };
     }
-    elsif ( !ref $arg ) {
-        push @items, { type => $arg };
+    elsif ( ref $arg eq 'HASH' ) {
+        $arg = dclone($arg);
     }
     else {
         croak 'invalid args';
     }
 
-    my @return;
+    my $type = delete $arg->{type};
 
-    for my $item (@items) {
-        my $type = delete $item->{type};
+    my $new = $self->_require_output_processor( $type, $arg );
 
-        my $new = $self->_require_output_processor( $type, $item );
+    push @{ $self->_output_processors }, $new;
 
-        push @{ $self->_output_processors }, $new;
-        push @return, $new;
-    }
-
-    return @return;
+    return $new;
 }
 
 sub _require_output_processor {
@@ -703,14 +898,14 @@ sub _require_output_processor {
     require_class($class);
 
     my $object = $class->new( {
-        type   => $type,
-        parent => $self,
+            type   => $type,
+            parent => $self,
         } );
 
-    $object->populate( $opt );
+    $object->populate($opt);
 
     return $object;
-};
+}
 
 sub get_output_processors {
     my $self = shift;
@@ -770,6 +965,41 @@ L<mailing list|/SUPPORT>.
         $template->param( form => $form );
     }
 
+If you're using L<Catalyst>, a more suitable example might be:
+
+    package MyApp::Controller::User;
+    use strict;
+    use base 'Catalyst::Controller::HTML::FormFu';
+    
+    sub user : Chained CaptureArgs(1) {
+        my ( $self, $c, $id ) = @_;
+        
+        my $rs = $c->model('Schema')->resultset('User');
+        
+        $c->stash->{user} = $rs->find( $id );
+        
+        return;
+    }
+    
+    sub edit : Chained('user') Args(0) FormConfig {
+        my ( $self, $c ) = @_;
+        
+        my $form = $c->stash->{form};
+        my $user = $c->stash->{user};
+        
+        if ( $form->submitted_and_valid ) {
+            
+            $form->save_to_model( $user );
+            
+            $c->res->redirect( $c->uri_for( "/user/$id" ) );
+            return;
+        }
+        
+        $form->defaults_from_model( $user )
+            if ! $form->submitted;
+        
+    }
+
 Here's an example of a config file to create a basic login form (all examples 
 here are L<YAML>, but you can use any format supported by L<Config::Any>), 
 you can also create forms directly in your perl code, rather than using an 
@@ -816,35 +1046,6 @@ This documentation follows the convention that method arguments surrounded
 by square brackets C<[]> are I<optional>, and all other arguments are 
 required.
 
-=head1 GETTING STARTED
-
-HTML::FormFu uses a templating system such as L<Template::Toolkit|Template> 
-or L<Template::Alloy> to create the form's XHTML output. As such, it needs 
-to be able to find its own template files. If you're using the L<Catalyst> 
-web framework, just run the following command:
-
-    $ script/myapp_create.pl HTML::FormFu
-
-This will create a directory, C<root/formfu>, containing the HTML::FormFu 
-template files. If you also use L<Catalyst::Controller::HTML::FormFu>, this 
-will also use that directory by default.
-
-If you're not using L<Catalyst>, you can create the template files by 
-running the following command (while in the directory containing your CGI 
-programs):
-
-      $ html_formfu_deploy.pl
-
-This installs the template files in directory C<./root>, which is the 
-default path that HTML::FormFu searches in.
-
-Although HTML::FormFu uses L<Template::Toolkit|Template> internally, 
-HTML::FormFu can be used in conjunction with whichever other templating 
-system you prefer to use for your own page layouts, whether it's 
-L<HTML::Template>, C<< <TMPL_VAR form> >>, 
-L<Petal>, C<< <form tal:replace="form"></form> >> 
-or L<Template::Magic>, C<< <!-- {form} --> >>.
-
 =head1 BUILDING A FORM
 
 =head2 new
@@ -887,6 +1088,23 @@ by any form.
       - file1
       - file2
 
+YAML multiple documents within a single file. The document start marker is 
+a line containing 3 dashes. Multiple documents will be applied in order, 
+just as if multiple filenames had been given.
+
+In the following example, multiple documents are taken advantage of to 
+load another config file after the elements are added. (If this were 
+a single document, the C<load_config_file> would be called before 
+C<elements>, regardless of it's position in the file).
+
+    ---
+    elements:
+      - name: one
+      - name: two
+    
+    ---
+    load_config_file: ext.yml
+    
 Like perl's C<open> function, relative-paths are resolved from the current 
 working directory.
 
@@ -1968,41 +2186,24 @@ Deletes all errors from a submitted form.
 
 =head2 render
 
-Return Value: $render_object
-
-Returns a C<$render> object which can either be printed, or used for more 
-advanced custom rendering.
-
-Using a C<$form> object in string context (for example, printing it) 
-automatically calls L</render>.
-
-The default class of the returned render object is 
-L<HTML::FormFu::Render::Form>.
-
-=head2 start_form
-
 Return Value: $string
 
-Convenience method for returning L<HTML::FormFu::Render::Form/start_form>.
+=head2 start
+
+Return Value: $string
 
 Returns the form start tag, and any output of L</form_error_message> and 
 L</javascript>.
 
-Equivalent to:
+Implicitly uses the C<tt> L</render_method>.
 
-    $form->render->start_form;
-
-=head2 end_form
+=head2 end
 
 Return Value: $string
 
-Convenience method for returning L<HTML::FormFu::Render::Form/end_form>.
-
 Returns the form end tag.
 
-Equivalent to:
-
-    $form->render->end_form;
+Implicitly uses the C<tt> L</render_method>.
 
 =head2 hidden_fields
 
@@ -2012,60 +2213,76 @@ Returns all hidden form fields.
 
 =head1 ADVANCED CUSTOMISATION
 
+By default, formfu renders "XHTML 1.0 Strict" compliant markup, with as
+little extra markup as possible, but with sufficient CSS class names to allow
+for a wide-range of output styles to be generated by changing only the CSS.
+
+If you wish to customise the markup, you'll need to tell HTML::FormFu to use
+an external rendering engine, such as L<Template Toolkit|Template> or 
+L<Template::Alloy>. See L</render_method> and L</tt_module> for details.
+
+Even if you set HTML::FormFu to use L<Template::Toolkit|Template> to render,
+the forms, HTML::FormFu can still be used in conjunction with whichever other
+templating system you prefer to use for your own page layouts, whether it's 
+L<HTML::Template>: C<< <TMPL_VAR form> >>, 
+L<Petal>: C<< <form tal:replace="form"></form> >> 
+or L<Template::Magic>: C<< <!-- {form} --> >>.
+
+=head2 render_method
+
+Default Value: C<string>
+
+Can be set to C<tt> to generate the form with external template files.
+
+To customise the markup, you'll need a copy of the template files, local to
+your application. See 
+L<HTML::FormFu::Manual::Cookbook/"Installing the TT templates"> for further 
+details.
+
+You can customise the markup for a single element by setting that element's
+L</render_method> to C<tt>, while the rest of the form uses the default
+C<string> render-method. Note though, that if you try setting the form or a
+Block's L</render_method> to C<tt>, and then set a child element's
+L</render_method> to C<string>, that setting will be ignored, and the child
+elements will still use the C<tt> render-method.
+
+    ---
+    elements:
+      - name: foo
+        render_method: tt
+        filename: custom_field
+      
+      - name: bar
+    
+    # in this example, 'foo' will use a custom template,
+    # while bar will use the default 'string' rendering method
+
+This method is a special 'inherited accessor', which means it can be set on 
+the form, a block element or a single element. When the value is read, if 
+no value is defined it automatically traverses the element's hierarchy of 
+parents, through any block elements and up to the form, searching for a 
+defined value.
+
 =head2 filename
 
 Change the template filename used for the form.
 
 Default Value: "form"
 
-=head2 render_class
-
-Set the classname used to create a form render object. If set, the values of 
-L</render_class_prefix> and L</render_class_suffix> are ignored.
-
-Default Value: none
-
-This method is a special 'inherited accessor', which means it can be set on 
-the form, a block element or a single element. When the value is read, if 
-no value is defined it automatically traverses the element's hierarchy of 
-parents, through any block elements and up to the form, searching for a 
-defined value.
-
-=head2 render_class_prefix
-
-Set the prefix used to generate the classname of the form render object and 
-all Element render objects.
-
-Default Value: "HTML::FormFu::Render"
-
-This method is a special 'inherited accessor', which means it can be set on 
-the form, a block element or a single element. When the value is read, if 
-no value is defined it automatically traverses the element's hierarchy of 
-parents, through any block elements and up to the form, searching for a 
-defined value.
-
-=head2 render_class_suffix
-
-Set the suffix used to generate the classname of the form render object.
-
-Default Value: "Form"
-
-=head2 render_class_args
+=head2 tt_args
 
 Arguments: [\%constructor_arguments]
 
-Accepts a hash-ref of arguments passed to the render object constructor for 
-the form and all elements.
+Accepts a hash-ref of arguments passed to L</render_method>, which is called
+internally by L</render>.
 
-The default render class (L<HTML::FormFu::Render::base>) passes these 
-arguments to the L<TT|Template> constructor.
+Within L</tt>, the keys C<RELATIVE> and C<RECURSION> are overridden to always 
+be true, as these are a basic requirement for the L<Template> engine.
 
-The keys C<RELATIVE> and C<RECURSION> are overridden to always be true, as 
-these are a basic requirement for the L<Template> engine.
-
-The default value of C<INCLUDE_PATH> is C<root>. This should generally be 
-overridden to point to the location of the HTML::FormFu template files on 
-your local system.
+The system directory containing HTML::FormFu's template files is always 
+added to the end of C<INCLUDE_PATH>, so that the core template files will be 
+found. You only need to set this yourself if you have your own copy of the 
+template files for customisation purposes.
 
 This method is a special 'inherited accessor', which means it can be set on 
 the form, a block element or a single element. When the value is read, if 
@@ -2073,26 +2290,35 @@ no value is defined it automatically traverses the element's hierarchy of
 parents, through any block elements and up to the form, searching for a 
 defined value.
 
-=head2 add_render_class_args
+=head2 add_tt_args
 
 Arguments: [\%constructor_arguments]
 
 Ensures that the hash-ref argument is merged with any existing hash-ref 
-value of L</render_class_args>.
+value of L</tt_args>.
 
-=head2 render_method
+=head2 tt_module
 
-Arguments: [$method_name]
+Default Value: Template
 
-The method named called by L<HTML::FormFu::Render::base/output>.
-
-Default Value: 'xhtml'
+The module used when L</render_method> is set to C<tt>. Should provide an
+interface compatible with L<Template>.
 
 This method is a special 'inherited accessor', which means it can be set on 
 the form, a block element or a single element. When the value is read, if 
 no value is defined it automatically traverses the element's hierarchy of 
 parents, through any block elements and up to the form, searching for a 
 defined value.
+
+=head2 render_data
+
+Usually called implicitly by L</render>. Returns the data structure that
+would normally be passed onto the C<string> or C<tt> render-methods.
+
+
+=head2 render_data_non_recursive
+
+Like L</render_data>, but doesn't include the data for any child-elements. 
 
 =head1 INTROSPECTION
 

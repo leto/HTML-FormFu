@@ -1,24 +1,26 @@
 package HTML::FormFu::Element;
-
 use strict;
+use base 'HTML::FormFu::base';
 use Class::C3;
 
 use HTML::FormFu::Attribute qw/ mk_attrs mk_attr_accessors
     mk_output_accessors mk_inherited_accessors mk_accessors
     mk_inherited_merging_accessors /;
-use HTML::FormFu::ObjectUtil qw/ 
+use HTML::FormFu::ObjectUtil qw/
     :FORM_AND_ELEMENT
-    load_config_file _render_class populate form stash parent /;
+    load_config_file populate form stash parent /;
 use HTML::FormFu::Util qw/ require_class xml_escape /;
-use Scalar::Util qw/ refaddr /;
+use Scalar::Util qw/ refaddr weaken /;
 use Storable qw( dclone );
 use Carp qw/ croak /;
 
 use overload
     'eq' => sub { refaddr $_[0] eq refaddr $_[1] },
+    'ne' => sub { refaddr $_[0] ne refaddr $_[1] },
     '==' => sub { refaddr $_[0] eq refaddr $_[1] },
-    '""'     => sub { return shift->render },
-    bool     => sub {1},
+    '!=' => sub { refaddr $_[0] ne refaddr $_[1] },
+    '""' => sub { return shift->render },
+    bool => sub {1},
     fallback => 1;
 
 __PACKAGE__->mk_attrs(qw/ attributes /);
@@ -27,14 +29,11 @@ __PACKAGE__->mk_attr_accessors(qw/ id /);
 
 __PACKAGE__->mk_accessors(
     qw/
-        name type filename multi_filename is_field
-        render_class_suffix /
+        name type filename is_field is_repeatable db
+        /
 );
 
-__PACKAGE__->mk_inherited_accessors(
-    qw/ render_class render_class_prefix render_class_args
-        render_method /
-);
+__PACKAGE__->mk_inherited_accessors( qw/ tt_args render_method / );
 
 __PACKAGE__->mk_inherited_merging_accessors(qw/ config_callback /);
 
@@ -49,6 +48,7 @@ sub new {
 
     $self->attributes( {} );
     $self->stash(      {} );
+    $self->db(         {} );
 
     if ( exists $attrs{parent} ) {
         $self->parent( delete $attrs{parent} );
@@ -112,40 +112,39 @@ sub clone {
 
     my %new = %$self;
 
-    $new{render_class_args} = dclone $self->{render_class_args}
-        if $self->{render_class_args};
+    $new{tt_args} = dclone $self->{tt_args}
+        if $self->{tt_args};
 
     $new{attributes} = dclone $self->attributes;
 
     return bless \%new, ref $self;
 }
 
-sub render {
+sub render_data {
+    return shift->render_data_non_recursive(@_);
+}
+
+sub render_data_non_recursive {
     my $self = shift;
 
-    my $class = $self->_render_class('Element');
-    require_class($class);
+    my %render = (
+        name       => xml_escape( $self->name ),
+        attributes => xml_escape( $self->attributes ),
+        type       => $self->type,
+        filename   => $self->filename,
+        is_field   => $self->is_field,
+        stash      => $self->stash,
+        parent     => $self->parent,
+        form       => sub { return shift->{parent}->form },
+        @_ ? %{ $_[0] } : () );
 
-    my $render = $class->new( {
-            name                => xml_escape( $self->name ),
-            attributes          => xml_escape( $self->attributes ),
-            render_class_args   => dclone( $self->render_class_args ),
-            type                => $self->type,
-            render_class_suffix => $self->render_class_suffix,
-            render_method       => $self->render_method,
-            filename            => $self->filename,
-            multi_filename      => $self->multi_filename,
-            is_field            => $self->is_field,
-            stash               => $self->stash,
-            @_ ? %{ $_[0] } : () } );
+    weaken( $render{parent} );
 
-    $render->parent($self);
+    $self->prepare_id( \%render );
 
-    $self->prepare_id($render);
+    $self->prepare_attrs( \%render );
 
-    $self->prepare_attrs($render);
-
-    return $render;
+    return \%render;
 }
 
 1;
@@ -345,17 +344,7 @@ Default Value: none
 =head2 filename
 
 This value identifies which template file should be used by 
-L<HTML::FormFu::Render::base/xhtml> to render the element.
-
-=head2 multi_filename
-
-This value identifies which template file should be used to render the 
-element when the element is within a 
-L<multi element|HTML::FormFu::Element::Multi>.
-
-This value is generally either C<multi_ltr> or C<multi_rtl> depending on 
-whether the field and label should be displayed from left-to-right or 
-right-to-left.
+L</render> to render the element.
 
 =head2 prepare_id
 
@@ -371,16 +360,7 @@ See L<HTML::FormFu::Element::_Field/prepare_attrs> for details.
 
 =head2 render
 
-Return Value: $render_object
-
-Returns a C<$render> object which can either be printed, or used for more 
-advanced custom rendering.
-
-Using an C<$element> object in string context (for example, printing it) 
-automatically calls L</render>.
-
-The default base-class of the returned render object is 
-L<HTML::FormFu::Render::Element>.
+Return Value: $string
 
 =head2 INTROSPECTION
 
@@ -399,21 +379,9 @@ See L<HTML::FormFu/clone> for details.
 
 =head1 ADVANCED CUSTOMISATION
 
-=head2 render_class
+=head2 tt_args
 
-See L<HTML::FormFu/render_class> for details.
-
-=head2 render_class_prefix
-
-See L<HTML::FormFu/render_class_prefix> for details.
-
-=head2 render_class_suffix
-
-See L<HTML::FormFu/render_class_suffix> for details.
-
-=head2 render_class_args
-
-See L<HTML::FormFu/render_class_args> for details.
+See L<HTML::FormFu/tt_args> for details.
 
 =head2 render_method
 
@@ -426,6 +394,8 @@ See L<HTML::FormFu/render_method> for details.
 =item L<HTML::FormFu::Element::Button>
 
 =item L<HTML::FormFu::Element::Checkbox>
+
+=item L<HTML::FormFu::Element::Checkboxgroup>
 
 =item L<HTML::FormFu::Element::ContentButton>
 
@@ -468,6 +438,8 @@ See L<HTML::FormFu/render_method> for details.
 =item L<HTML::FormFu::Element::Hr>
 
 =item L<HTML::FormFu::Element::Multi>
+
+=item L<HTML::FormFu::Element::Repeatable>
 
 =item L<HTML::FormFu::Element::SimpleTable>
 

@@ -5,7 +5,7 @@ use Test::More tests => 2;
 
 use HTML::FormFu;
 
-my $form = HTML::FormFu->new;
+my $form = HTML::FormFu->new({ tt_args => { INCLUDE_PATH => 'share/templates/tt/xhtml' } });
 
 $form->auto_fieldset(1);
 
@@ -15,7 +15,7 @@ my $block = $form->element( {
         content => 'Hello <World>!',
     } );
 
-$block->element( { type => 'Text' } );
+$block->element( { name => "foo" } );
 
 # because there's a content(), the block's elements should be ignored
 

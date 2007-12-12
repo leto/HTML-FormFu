@@ -3,7 +3,7 @@ package HTML::FormFu::ObjectUtil;
 use strict;
 use Exporter qw/ import /;
 
-use HTML::FormFu::Util qw/ _parse_args require_class _get_elements /;
+use HTML::FormFu::Util qw/ _parse_args require_class _get_elements split_name /;
 use Config::Any;
 use Data::Visitor::Callback;
 use Scalar::Util qw/ refaddr weaken blessed /;
@@ -42,6 +42,9 @@ our @form_and_block = qw/
     get_error
     get_errors
     clear_errors
+    insert_before
+    insert_after
+    remove_element
     /;
 
 our @form_and_element = qw/
@@ -58,16 +61,20 @@ our @form_and_element = qw/
     get_transformer
     /;
 
-our @EXPORT_OK = (qw/
-    _render_class _coerce populate
-    deflator 
-    load_config_file form insert_before insert_after clone name stash
-    constraints_from_dbic parent /,
+our @EXPORT_OK = (
+    qw/
+        _coerce populate
+        deflator
+        load_config_file form insert_before insert_after clone name stash
+        constraints_from_dbic parent nested_name nested_names get_nested_hash_value
+        set_nested_hash_value nested_hash_key_exists remove_element
+        /,
     @form_and_block,
-    @form_and_element );
+    @form_and_element
+);
 
 our %EXPORT_TAGS = (
-    FORM_AND_BLOCK => \@form_and_block,
+    FORM_AND_BLOCK   => \@form_and_block,
     FORM_AND_ELEMENT => \@form_and_element,
 );
 
@@ -300,6 +307,21 @@ sub insert_after {
     croak 'position element not found';
 }
 
+sub remove_element {
+    my ( $self, $object ) = @_;
+    
+    for my $i ( 0 .. @{ $self->_elements } - 1 ) {
+        if ( refaddr( $self->_elements->[$i] ) eq refaddr($object) ) {
+            splice @{ $self->_elements }, $i, 1;
+            undef $object->{parent};
+            undef $object;
+            return;
+        }
+    }
+
+    croak 'element not found';
+}
+
 sub load_config_file {
     my $self = shift;
     my @filenames;
@@ -315,10 +337,8 @@ sub load_config_file {
         croak "file not found: '$_'" if !-f $_;
     }
 
-    # ignore $@, Config::Any will take care of loading YAML.pm if necessary.
     # ImplicitUnicode ensures that values won't be double-encoded when we
     # encode() our output
-    eval { require YAML::Syck };
     local $YAML::Syck::ImplicitUnicode = 1;
 
     my $config_callback = $self->config_callback;
@@ -330,45 +350,28 @@ sub load_config_file {
     }
 
     for my $file (@filenames) {
-
         my $config = Config::Any->load_files( {
                 files   => [$file],
                 use_ext => 1,
             } );
 
-        my $data = $config->[0]->{$file};
-
-        if ( defined $data_visitor ) {
-            $data_visitor->visit($data);
-        }
-
-        $self->populate($data);
+        _load_file(
+            $self, $data_visitor, $config->[0]->{$file} );
     }
 
     return $self;
 }
 
-sub _render_class {
-    my ( $self, $dir ) = @_;
-    my $class;
+sub _load_file {
+    my ( $self, $data_visitor, $data ) = @_;
 
-    if ( defined $self->render_class ) {
-        $class = $self->render_class;
-    }
-    elsif ( defined $dir && defined $self->render_class_suffix ) {
-        $class
-            = $self->render_class_prefix . "::" 
-            . $dir . "::"
-            . $self->render_class_suffix;
-    }
-    elsif ( defined $dir ) {
-        $class = $self->render_class_prefix . "::" . $dir;
-    }
-    else {
-        $class = $self->render_class_prefix . "::" . $self->render_class_suffix;
+    if ( defined $data_visitor ) {
+        $data_visitor->visit($data);
     }
 
-    return $class;
+    $self->populate($_) for ( ref $data eq 'ARRAY' ? @$data : $data );
+    
+    return;
 }
 
 # create a map of errors to processors, so we can reassociate the new cloned
@@ -416,15 +419,13 @@ sub _coerce {
     croak "element cannot be coerced to type '$args{type}'"
         if !$element->isa( $args{package} );
 
-    my $render = $element->render;
-
-    $render->{value} = $self->value;
+    $element->value( $self->value );
 
     # because $element goes out of scope at the end of this subroutine,
     # we need an unweakened reference, so bypass parent() method
-    $render->{parent} = $element;
+    #    $element->{parent} = $element;
 
-    return $render;
+    return $element;
 }
 
 sub _coerce_processors_and_errors {
@@ -481,13 +482,17 @@ sub clone {
 
     my %new = %$self;
 
-    $new{_elements}         = [ map { $_->clone } @{ $self->_elements } ];
-    $new{attributes}        = dclone $self->attributes;
-    $new{render_class_args} = dclone $self->render_class_args;
-    $new{element_defaults}  = dclone $self->element_defaults;
-    $new{languages}         = dclone $self->languages;
+    $new{_elements}        = [ map { $_->clone } @{ $self->_elements } ];
+    $new{attributes}       = dclone $self->attributes;
+    $new{tt_args}          = dclone $self->tt_args;
+    $new{element_defaults} = dclone $self->element_defaults;
+    $new{languages}        = dclone $self->languages;
 
-    return bless \%new, ref $self;
+    my $obj = bless \%new, ref $self;
+
+    map { $_->parent($obj) } @{ $new{_elements} };
+
+    return $obj;
 }
 
 sub name {
@@ -496,6 +501,119 @@ sub name {
     croak 'cannot use name() as a setter' if @_;
 
     return $self->parent->name;
+}
+
+sub nested_name {
+    my $self = shift;
+
+    croak 'cannot use nested_name() as a setter' if @_;
+
+    return $self->parent->nested_name;
+}
+
+sub nested_names {
+    my $self = shift;
+
+    croak 'cannot use nested_names() as a setter' if @_;
+
+    return $self->parent->nested_names;
+}
+
+sub get_nested_hash_value {
+    my ( $self, $param, $name ) = @_;
+
+    my ( $root, @names ) = split_name($name);
+
+    if ( !@names ) {
+        return exists $param->{$root} ? $param->{$root} : undef;
+    }
+
+    my $ref = \$param->{$root};
+
+    for (@names) {
+        if (/^(0|[1-9][0-9]*)\z/) {
+            croak "nested param clash for ARRAY $root"
+                if ref $$ref ne 'ARRAY';
+
+            return if $1 > $#{$$ref};
+
+            $ref = \( $$ref->[$1] );
+        }
+        else {
+            return if !exists $$ref->{$_};
+
+            $ref = \( $$ref->{$_} );
+        }
+    }
+
+    return $$ref;
+}
+
+sub set_nested_hash_value {
+    my ( $self, $param, $name, $value ) = @_;
+
+    my ( $root, @names ) = split_name($name);
+
+    if ( !@names ) {
+        return $param->{$root} = $value;
+    }
+
+    my $ref = \$param->{$root};
+
+    for (@names) {
+        if (/^(0|[1-9][0-9]*)\z/) {
+            $$ref = [] if !defined $$ref;
+
+            croak "nested param clash for ARRAY $name"
+                if ref $$ref ne 'ARRAY';
+
+            $ref = \( $$ref->[$1] );
+        }
+        else {
+            $$ref = {} if !defined $$ref;
+
+            croak "nested param clash for HASH $name"
+                if ref $$ref ne 'HASH';
+
+            $ref = \( $$ref->{$_} );
+        }
+    }
+
+    $$ref = $value;
+}
+
+sub nested_hash_key_exists {
+    my ( $self, $param, $name ) = @_;
+
+    my ( $root, @names ) = split_name($name);
+
+    if ( !@names ) {
+        return exists $param->{$root};
+    }
+
+    my $ref = \$param->{$root};
+
+    for my $i ( 0 .. $#names ) {
+        my $part = $names[$i];
+
+        if ( $part =~ /^(0|[1-9][0-9]*)\z/ ) {
+            croak "nested param clash for ARRAY $root"
+                if ref $$ref ne 'ARRAY';
+
+            if ( $i == $#names ) {
+                return $1 > $$ref->[$1] ? 1 : 0;
+            }
+
+            $ref = \( $$ref->[$1] );
+        }
+        else {
+            if ( $i == $#names ) {
+                return exists $$ref->{$part} ? 1 : 0;
+            }
+
+            $ref = \( $$ref->{$part} );
+        }
+    }
 }
 
 sub stash {
@@ -633,7 +751,7 @@ sub element {
     }
 
     return @return == 1 ? $return[0] : @return;
-};
+}
 
 sub deflator {
     my ( $self, $arg ) = @_;
@@ -647,7 +765,7 @@ sub deflator {
     }
 
     return @return == 1 ? $return[0] : @return;
-};
+}
 
 sub filter {
     my ( $self, $arg ) = @_;
@@ -661,7 +779,7 @@ sub filter {
     }
 
     return @return == 1 ? $return[0] : @return;
-};
+}
 
 sub constraint {
     my ( $self, $arg ) = @_;
@@ -675,7 +793,7 @@ sub constraint {
     }
 
     return @return == 1 ? $return[0] : @return;
-};
+}
 
 sub inflator {
     my ( $self, $arg ) = @_;
@@ -689,7 +807,7 @@ sub inflator {
     }
 
     return @return == 1 ? $return[0] : @return;
-};
+}
 
 sub validator {
     my ( $self, $arg ) = @_;
@@ -703,7 +821,7 @@ sub validator {
     }
 
     return @return == 1 ? $return[0] : @return;
-};
+}
 
 sub transformer {
     my ( $self, $arg ) = @_;
@@ -717,7 +835,7 @@ sub transformer {
     }
 
     return @return == 1 ? $return[0] : @return;
-};
+}
 
 sub _single_element {
     my ( $self, $arg ) = @_;
@@ -725,7 +843,10 @@ sub _single_element {
     if ( !ref $arg ) {
         $arg = { type => $arg };
     }
-    elsif ( ref $arg ne 'HASH' ) {
+    elsif ( ref $arg eq 'HASH' ) {
+        $arg = dclone($arg);
+    }
+    else {
         croak 'invalid args';
     }
 
@@ -739,6 +860,9 @@ sub _single_element {
             = reverse @{ $self->get_elements( { type => 'Fieldset' } ) };
 
         push @{ $target->_elements }, $new;
+
+        $new->{parent} = $target;
+        weaken $new->{parent};
     }
     else {
         push @{ $self->_elements }, $new;
@@ -753,34 +877,36 @@ sub _single_deflator {
     if ( !ref $arg ) {
         $arg = { type => $arg };
     }
-    elsif ( ref $arg ne 'HASH' ) {
+    elsif ( ref $arg eq 'HASH' ) {
+        $arg = dclone($arg);
+    }
+    else {
         croak 'invalid args';
     }
 
     my @names = map { ref $_ ? @$_ : $_ }
-        grep {defined}
-        ( delete $arg->{name}, delete $arg->{names} );
+        grep {defined} ( delete $arg->{name}, delete $arg->{names} );
 
-    @names = uniq( map { $_->name }
-        grep { defined $_->name } @{ $self->get_fields } )
-        if !@names;
+    @names = uniq(
+        grep    {defined}
+            map { $_->nested_name } @{ $self->get_fields } ) if !@names;
 
     croak "no field names to add deflator to" if !@names;
 
     my $type = delete $arg->{type};
 
     my @return;
-    
+
     for my $x (@names) {
-        for my $field ( @{ $self->get_fields( { name => $x } ) } ) {
+        for my $field ( @{ $self->get_fields( { nested_name => $x } ) } ) {
             my $new = $field->_require_deflator( $type, $arg );
             push @{ $field->_deflators }, $new;
             push @return, $new;
         }
     }
-    
+
     return @return;
-};
+}
 
 sub _single_filter {
     my ( $self, $arg ) = @_;
@@ -788,34 +914,36 @@ sub _single_filter {
     if ( !ref $arg ) {
         $arg = { type => $arg };
     }
-    elsif ( ref $arg ne 'HASH' ) {
+    elsif ( ref $arg eq 'HASH' ) {
+        $arg = dclone($arg);
+    }
+    else {
         croak 'invalid args';
     }
 
     my @names = map { ref $_ ? @$_ : $_ }
-        grep {defined}
-        ( delete $arg->{name}, delete $arg->{names} );
+        grep {defined} ( delete $arg->{name}, delete $arg->{names} );
 
-    @names = uniq( map { $_->name }
-        grep { defined $_->name } @{ $self->get_fields } )
-        if !@names;
+    @names = uniq(
+        grep    {defined}
+            map { $_->nested_name } @{ $self->get_fields } ) if !@names;
 
     croak "no field names to add filter to" if !@names;
 
     my $type = delete $arg->{type};
 
     my @return;
-    
+
     for my $x (@names) {
-        for my $field ( @{ $self->get_fields( { name => $x } ) } ) {
+        for my $field ( @{ $self->get_fields( { nested_name => $x } ) } ) {
             my $new = $field->_require_filter( $type, $arg );
             push @{ $field->_filters }, $new;
             push @return, $new;
         }
     }
-    
+
     return @return;
-};
+}
 
 sub _single_constraint {
     my ( $self, $arg ) = @_;
@@ -823,34 +951,36 @@ sub _single_constraint {
     if ( !ref $arg ) {
         $arg = { type => $arg };
     }
-    elsif ( ref $arg ne 'HASH' ) {
+    elsif ( ref $arg eq 'HASH' ) {
+        $arg = dclone($arg);
+    }
+    else {
         croak 'invalid args';
     }
 
     my @names = map { ref $_ ? @$_ : $_ }
-        grep {defined}
-        ( delete $arg->{name}, delete $arg->{names} );
+        grep {defined} ( delete $arg->{name}, delete $arg->{names} );
 
-    @names = uniq( map { $_->name }
-        grep { defined $_->name } @{ $self->get_fields } )
-        if !@names;
+    @names = uniq(
+        grep    {defined}
+            map { $_->nested_name } @{ $self->get_fields } ) if !@names;
 
     croak "no field names to add constraint to" if !@names;
 
     my $type = delete $arg->{type};
 
     my @return;
-    
+
     for my $x (@names) {
-        for my $field ( @{ $self->get_fields( { name => $x } ) } ) {
+        for my $field ( @{ $self->get_fields( { nested_name => $x } ) } ) {
             my $new = $field->_require_constraint( $type, $arg );
             push @{ $field->_constraints }, $new;
             push @return, $new;
         }
     }
-    
+
     return @return;
-};
+}
 
 sub _single_inflator {
     my ( $self, $arg ) = @_;
@@ -858,34 +988,36 @@ sub _single_inflator {
     if ( !ref $arg ) {
         $arg = { type => $arg };
     }
-    elsif ( ref $arg ne 'HASH' ) {
+    elsif ( ref $arg eq 'HASH' ) {
+        $arg = dclone($arg);
+    }
+    else {
         croak 'invalid args';
     }
 
     my @names = map { ref $_ ? @$_ : $_ }
-        grep {defined}
-        ( delete $arg->{name}, delete $arg->{names} );
+        grep {defined} ( delete $arg->{name}, delete $arg->{names} );
 
-    @names = uniq( map { $_->name }
-        grep { defined $_->name } @{ $self->get_fields } )
-        if !@names;
+    @names = uniq(
+        grep    {defined}
+            map { $_->nested_name } @{ $self->get_fields } ) if !@names;
 
     croak "no field names to add inflator to" if !@names;
 
     my $type = delete $arg->{type};
 
     my @return;
-    
+
     for my $x (@names) {
-        for my $field ( @{ $self->get_fields( { name => $x } ) } ) {
+        for my $field ( @{ $self->get_fields( { nested_name => $x } ) } ) {
             my $new = $field->_require_inflator( $type, $arg );
             push @{ $field->_inflators }, $new;
             push @return, $new;
         }
     }
-    
+
     return @return;
-};
+}
 
 sub _single_validator {
     my ( $self, $arg ) = @_;
@@ -893,34 +1025,36 @@ sub _single_validator {
     if ( !ref $arg ) {
         $arg = { type => $arg };
     }
-    elsif ( ref $arg ne 'HASH' ) {
+    elsif ( ref $arg eq 'HASH' ) {
+        $arg = dclone($arg);
+    }
+    else {
         croak 'invalid args';
     }
 
     my @names = map { ref $_ ? @$_ : $_ }
-        grep {defined}
-        ( delete $arg->{name}, delete $arg->{names} );
+        grep {defined} ( delete $arg->{name}, delete $arg->{names} );
 
-    @names = uniq( map { $_->name }
-        grep { defined $_->name } @{ $self->get_fields } )
-        if !@names;
+    @names = uniq(
+        grep    {defined}
+            map { $_->nested_name } @{ $self->get_fields } ) if !@names;
 
     croak "no field names to add validator to" if !@names;
 
     my $type = delete $arg->{type};
 
     my @return;
-    
+
     for my $x (@names) {
-        for my $field ( @{ $self->get_fields( { name => $x } ) } ) {
+        for my $field ( @{ $self->get_fields( { nested_name => $x } ) } ) {
             my $new = $field->_require_validator( $type, $arg );
             push @{ $field->_validators }, $new;
             push @return, $new;
         }
     }
-    
+
     return @return;
-};
+}
 
 sub _single_transformer {
     my ( $self, $arg ) = @_;
@@ -928,34 +1062,36 @@ sub _single_transformer {
     if ( !ref $arg ) {
         $arg = { type => $arg };
     }
-    elsif ( ref $arg ne 'HASH' ) {
+    elsif ( ref $arg eq 'HASH' ) {
+        $arg = dclone($arg);
+    }
+    else {
         croak 'invalid args';
     }
 
     my @names = map { ref $_ ? @$_ : $_ }
-        grep {defined}
-        ( delete $arg->{name}, delete $arg->{names} );
+        grep {defined} ( delete $arg->{name}, delete $arg->{names} );
 
-    @names = uniq( map { $_->name }
-        grep { defined $_->name } @{ $self->get_fields } )
-        if !@names;
+    @names = uniq(
+        grep    {defined}
+            map { $_->nested_name } @{ $self->get_fields } ) if !@names;
 
     croak "no field names to add transformer to" if !@names;
 
     my $type = delete $arg->{type};
 
     my @return;
-    
+
     for my $x (@names) {
-        for my $field ( @{ $self->get_fields( { name => $x } ) } ) {
+        for my $field ( @{ $self->get_fields( { nested_name => $x } ) } ) {
             my $new = $field->_require_transformer( $type, $arg );
             push @{ $field->_transformers }, $new;
             push @return, $new;
         }
     }
-    
+
     return @return;
-};
+}
 
 sub get_deflators {
     my $self = shift;
@@ -971,8 +1107,12 @@ sub get_deflators {
         @x = grep { $_->type eq $args{type} } @x;
     }
 
+    if ( exists $args{nested_name} ) {
+        @x = grep { $_->nested_name eq $args{nested_name} } @x;
+    }
+
     return \@x;
-};
+}
 
 sub get_filters {
     my $self = shift;
@@ -988,8 +1128,12 @@ sub get_filters {
         @x = grep { $_->type eq $args{type} } @x;
     }
 
+    if ( exists $args{nested_name} ) {
+        @x = grep { $_->nested_name eq $args{nested_name} } @x;
+    }
+
     return \@x;
-};
+}
 
 sub get_constraints {
     my $self = shift;
@@ -1005,8 +1149,12 @@ sub get_constraints {
         @x = grep { $_->type eq $args{type} } @x;
     }
 
+    if ( exists $args{nested_name} ) {
+        @x = grep { $_->nested_name eq $args{nested_name} } @x;
+    }
+
     return \@x;
-};
+}
 
 sub get_inflators {
     my $self = shift;
@@ -1022,8 +1170,12 @@ sub get_inflators {
         @x = grep { $_->type eq $args{type} } @x;
     }
 
+    if ( exists $args{nested_name} ) {
+        @x = grep { $_->nested_name eq $args{nested_name} } @x;
+    }
+
     return \@x;
-};
+}
 
 sub get_validators {
     my $self = shift;
@@ -1039,8 +1191,12 @@ sub get_validators {
         @x = grep { $_->type eq $args{type} } @x;
     }
 
+    if ( exists $args{nested_name} ) {
+        @x = grep { $_->nested_name eq $args{nested_name} } @x;
+    }
+
     return \@x;
-};
+}
 
 sub get_transformers {
     my $self = shift;
@@ -1056,8 +1212,12 @@ sub get_transformers {
         @x = grep { $_->type eq $args{type} } @x;
     }
 
+    if ( exists $args{nested_name} ) {
+        @x = grep { $_->nested_name eq $args{nested_name} } @x;
+    }
+
     return \@x;
-};
+}
 
 sub _require_deflator {
     my ( $self, $type, $opt ) = @_;
@@ -1077,14 +1237,14 @@ sub _require_deflator {
     require_class($class);
 
     my $object = $class->new( {
-        type   => $type,
-        parent => $self,
+            type   => $type,
+            parent => $self,
         } );
 
-    $object->populate( $opt );
+    $object->populate($opt);
 
     return $object;
-};
+}
 
 sub _require_filter {
     my ( $self, $type, $opt ) = @_;
@@ -1104,14 +1264,14 @@ sub _require_filter {
     require_class($class);
 
     my $object = $class->new( {
-        type   => $type,
-        parent => $self,
+            type   => $type,
+            parent => $self,
         } );
 
-    $object->populate( $opt );
+    $object->populate($opt);
 
     return $object;
-};
+}
 
 sub _require_inflator {
     my ( $self, $type, $opt ) = @_;
@@ -1131,14 +1291,14 @@ sub _require_inflator {
     require_class($class);
 
     my $object = $class->new( {
-        type   => $type,
-        parent => $self,
+            type   => $type,
+            parent => $self,
         } );
 
-    $object->populate( $opt );
+    $object->populate($opt);
 
     return $object;
-};
+}
 
 sub _require_validator {
     my ( $self, $type, $opt ) = @_;
@@ -1158,14 +1318,14 @@ sub _require_validator {
     require_class($class);
 
     my $object = $class->new( {
-        type   => $type,
-        parent => $self,
+            type   => $type,
+            parent => $self,
         } );
 
-    $object->populate( $opt );
+    $object->populate($opt);
 
     return $object;
-};
+}
 
 sub _require_transformer {
     my ( $self, $type, $opt ) = @_;
@@ -1185,14 +1345,14 @@ sub _require_transformer {
     require_class($class);
 
     my $object = $class->new( {
-        type   => $type,
-        parent => $self,
+            type   => $type,
+            parent => $self,
         } );
 
-    $object->populate( $opt );
+    $object->populate($opt);
 
     return $object;
-};
+}
 
 sub get_deflator {
     my $self = shift;
@@ -1200,7 +1360,7 @@ sub get_deflator {
     my $x = $self->get_deflators(@_);
 
     return @$x ? $x->[0] : ();
-};
+}
 
 sub get_filter {
     my $self = shift;
@@ -1208,7 +1368,7 @@ sub get_filter {
     my $x = $self->get_filters(@_);
 
     return @$x ? $x->[0] : ();
-};
+}
 
 sub get_constraint {
     my $self = shift;
@@ -1216,7 +1376,7 @@ sub get_constraint {
     my $x = $self->get_constraints(@_);
 
     return @$x ? $x->[0] : ();
-};
+}
 
 sub get_inflator {
     my $self = shift;
@@ -1224,7 +1384,7 @@ sub get_inflator {
     my $x = $self->get_inflators(@_);
 
     return @$x ? $x->[0] : ();
-};
+}
 
 sub get_validator {
     my $self = shift;
@@ -1232,7 +1392,7 @@ sub get_validator {
     my $x = $self->get_validators(@_);
 
     return @$x ? $x->[0] : ();
-};
+}
 
 sub get_transformer {
     my $self = shift;
@@ -1240,6 +1400,6 @@ sub get_transformer {
     my $x = $self->get_transformers(@_);
 
     return @$x ? $x->[0] : ();
-};
+}
 
 1;

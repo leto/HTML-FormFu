@@ -17,7 +17,7 @@ sub new {
     my $self = shift->next::method(@_);
 
     $self->field_type('checkbox');
-    $self->multi_filename('multi_rtl');
+    $self->reverse_multi(1);
 
     return $self;
 }
@@ -31,29 +31,33 @@ sub process_value {
 sub prepare_attrs {
     my ( $self, $render ) = @_;
 
-    my $submitted = $self->form->submitted;
+    my $form      = $self->form;
+    my $submitted = $form->submitted;
     my $default   = $self->default;
     my $original  = $self->value;
-    my $value     = $self->form->input->{ $self->name };
+    my $value
+        = defined $self->name
+        ? $self->get_nested_hash_value( $form->input, $self->nested_name )
+        : undef;
 
     if (   $submitted
         && defined $value
         && defined $original
         && $value eq $original )
     {
-        $render->attributes( 'checked', 'checked' );
+        $render->{attributes}{checked} = 'checked';
     }
     elsif ($submitted
         && $self->retain_default
         && ( !defined $value || $value eq "" ) )
     {
-        $render->attributes( 'checked' => 'checked' );
+        $render->{attributes}{checked} = 'checked';
     }
     elsif ($submitted) {
-        delete $render->attributes->{checked};
+        delete $render->{attributes}{checked};
     }
     elsif ( defined $default && defined $original && $default eq $original ) {
-        $render->attributes( 'checked', 'checked' );
+        $render->{attributes}{checked} = 'checked';
     }
 
     $self->next::method($render);
@@ -78,6 +82,10 @@ HTML::FormFu::Element::Checkbox - Checkbox form field
 Checkbox form field.
 
 =head1 METHODS
+
+=head2 reverse_multi
+
+Overrides the default value, so it's C<true>.
 
 =head1 SEE ALSO
 

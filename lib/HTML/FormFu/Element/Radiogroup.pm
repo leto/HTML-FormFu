@@ -11,9 +11,9 @@ __PACKAGE__->mk_accessors(qw/ radiogroup_filename /);
 sub new {
     my $self = shift->next::method(@_);
 
-    $self->filename('radiogroup');
-    $self->radiogroup_filename('radiogroup_tag');
-    $self->label_filename('legend');
+    $self->filename('input');
+    $self->field_filename('radiogroup_tag');
+    $self->label_tag('legend');
     $self->container_tag('fieldset');
 
     return $self;
@@ -53,6 +53,10 @@ sub _prepare_id {
         $id =~ s/%([fn])/$string{$1}/g;
         $id =~ s/%c/ ++$$count_ref /gex;
 
+        if ( defined( my $count = $self->repeatable_count ) ) {
+            $id =~ s/%r/$count/g;
+        }
+
         $option->{attributes}{id} = $id;
     }
 
@@ -72,9 +76,7 @@ sub _prepare_attrs {
 
     if (   $submitted
         && defined $value
-        && (ref $value eq 'ARRAY'
-            ? grep { $_ eq $option->{value} } @$value
-            : $value eq $option->{value} ) )
+        && $value eq $option->{value} )
     {
         $option->{attributes}{checked} = 'checked';
     }
@@ -95,23 +97,11 @@ sub _prepare_attrs {
     return;
 }
 
-sub _render_label {
-    my ( $self, $render ) = @_;
-
-    $self->next::method($render);
-
-    if ( defined $render->{label} && $render->{label_filename} eq 'legend' ) {
-        $render->{container_attributes}{class} =~ s/\blabel\b/legend/;
-    }
-
-    return;
-}
-
-sub render {
+sub render_data_non_recursive {
     my $self = shift;
 
     my $render = $self->next::method( {
-            radiogroup_filename => $self->radiogroup_filename,
+            field_filename => $self->field_filename,
             @_ ? %{ $_[0] } : () } );
 
     for my $item ( @{ $render->{options} } ) {
@@ -120,6 +110,52 @@ sub render {
     }
 
     return $render;
+}
+
+sub _string_field {
+    my ( $self, $render ) = @_;
+
+    # radiogroup_tag template
+
+    my $html .= sprintf "<span%s>\n", process_attrs( $render->{attributes} );
+
+    for my $option ( @{ $render->{options} } ) {
+        if ( defined $option->{group} ) {
+            $html .= sprintf "<span%s>\n",
+                process_attrs( $option->{attributes} );
+
+            for my $item ( @{ $option->{group} } ) {
+                $html .= sprintf
+                    qq{<span>\n<input name="%s" type="radio" value="%s"%s />},
+                    $render->{nested_name},
+                    $item->{value},
+                    process_attrs( $item->{attributes} );
+
+                $html .= sprintf
+                    "\n<label%s>%s</label>\n</span>\n",
+                    process_attrs( $item->{label_attributes} ),
+                    $item->{label};
+            }
+
+            $html .= "</span>\n";
+        }
+        else {
+            $html .= sprintf
+                qq{<span>\n<input name="%s" type="radio" value="%s"%s />},
+                $render->{nested_name},
+                $option->{value},
+                process_attrs( $option->{attributes} );
+
+            $html .= sprintf
+                "\n<label%s>%s</label>\n</span>\n",
+                process_attrs( $option->{label_attributes} ),
+                $option->{label};
+        }
+    }
+
+    $html .= "</span>";
+
+    return $html;
 }
 
 1;
@@ -136,7 +172,7 @@ YAML config:
 
     ---
     elements:
-      - type: RadioGroup
+      - type: Radiogroup
         name: sex
         options:
           - [ 'm', 'Male' ]
@@ -163,6 +199,10 @@ See L<HTML::FormFu::Element::_Group/values>.
 =head2 value_range
 
 See L<HTML::FormFu::Element::_Group/value_range>.
+
+=head2 empty_first
+
+See L<HTML::FormFu::Element::_Group/empty_first>.
 
 =head2 auto_id
 

@@ -1,10 +1,12 @@
 --- 
 abstract: HTML Form Creation, Rendering and Validation Framework
-author: Carl Franks
+author: 
+  - Carl Franks
 build_requires: 
+  ExtUtils::MakeMaker: 6.11
   Test::NoWarnings: 0
 distribution_type: module
-generated_by: Module::Install version 0.67
+generated_by: Module::Install version 0.68
 license: perl
 meta-spec: 
   url: http://module-build.sourceforge.net/META-spec-v1.3.html
@@ -12,21 +14,20 @@ meta-spec:
 name: HTML-FormFu
 no_index: 
   directory: 
+    - examples
     - inc
     - t
 requires: 
-  Carp: 0
   Class::Accessor::Chained::Fast: 0
   Class::C3: 0
-  Config::Any: 0
+  Config::Any: 0.10
   Data::Visitor::Callback: 0
   Date::Calc: 0
   DateTime::Format::Builder: 0.7901
   DateTime::Format::Strptime: 0
   DateTime::Locale: 0
   Email::Valid: 0
-  File::Copy: 0
-  File::Spec: 0
+  File::ShareDir: 0
   HTML::Scrubber: 0
   HTML::TokeParser::Simple: 0
   List::MoreUtils: 0
@@ -34,11 +35,8 @@ requires:
   Module::Pluggable: 0
   Regexp::Common: 0
   Regexp::Copy: 0
-  Scalar::Util: 0
-  Storable: 2.05
   Task::Weaken: 0
-  Template: 2.19
   YAML::Syck: 0
   perl: 5.8.1
 tests: t/*.t t/*/*.t
-version: 0.01006
+version: 0.02000
