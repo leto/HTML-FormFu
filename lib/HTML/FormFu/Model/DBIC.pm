@@ -455,12 +455,7 @@ sub _save_columns {
 
     my @valid = $form->valid;
 
-    my @pk = $dbic->result_source->primary_columns;
-
     for my $col (@$cols) {
-
-        # don't edit primary key columns
-        next if grep { $col eq $_ } @pk;
 
         my $col_info    = $dbic->column_info($col);
         my $is_nullable = $col_info->{is_nullable} || 0;
@@ -482,9 +477,15 @@ sub _save_columns {
         my $nested_name = defined $field ? $field->nested_name : undef;
 
         my $value
-            = defined $field ? $form->param( $field->nested_name )
-            : ( grep { $col eq $_ } @valid ) ? $form->param($col)
-            :                                  undef;
+            = defined $field
+            ? $form->param( $field->nested_name )
+            : ( grep { defined $attrs->{nested_base} 
+                    ? defined $nested_name
+                        ? $nested_name eq $_
+                        : 0
+                    : $col eq $_ } @valid )
+                ? $form->param($col)
+                : undef;
 
         if (   defined $field
             && $field->db->{delete_if_empty}
