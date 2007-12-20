@@ -15,27 +15,16 @@ requires 'DateTime::Locale';
 requires 'Email::Valid';
 requires 'File::ShareDir';
 requires 'HTML::Scrubber';
-requires 'HTML::TokeParser::Simple';
+requires 'HTML::TokeParser::Simple' => '3.14';
 requires 'List::MoreUtils';
 requires 'Locale::Maketext::Simple';
 requires 'Module::Pluggable';
 requires 'Regexp::Copy';
 requires 'Regexp::Common';
 requires 'Task::Weaken'; # to ensure Scalar::Util was built with weaken()
+requires 'Template'; # form->start and ->end still require TT
+                     # so does t/elements/render_method
 requires 'YAML::Syck';
-
-my $msg = <<MSG;
-If you want to use the template files to customise your forms,
-you'll need to install one of the following modules:
-MSG
-
-feature "${msg}Template",
-    -default => 0,
-    'Template' => '2.19';
-
-feature "Template::Alloy",
-    -default => 0,
-    'Template::Alloy' => '1.005';
 
 test_requires 'Test::NoWarnings';
 

@@ -65,7 +65,11 @@ sub _fill_relationships {
             my ($pk) = $rs->related_source($rel)->primary_columns;
 
             next
-                unless grep { $_->name eq $pk }
+                unless grep {
+                    $pk eq defined $_->original_name
+                        ? $_->original_name
+                        : $_->name
+                }
                 @{ $block->get_fields( { type => 'Hidden' } ) };
 
             my @rows = $dbic->related_resultset($rel)->all;
@@ -192,8 +196,12 @@ sub _fill_multi_value_fields_many_to_many {
 sub _fill_repeatable_many_to_many {
     my ( $self, $base, $dbic, $form, $rs, $attrs, $rels, $cols ) = @_;
 
-    my @blocks
-        = grep { !$_->is_field && $_->is_repeatable && $_->increment_field_names }
+    my @blocks = grep {
+            !$_->is_field 
+            && $_->is_repeatable 
+            && $_->increment_field_names
+            && defined $_->nested_name
+        }
         @{ $base->get_all_elements };
 
     for my $block (@blocks) {
@@ -838,8 +846,8 @@ To edit fields in related rows with C<has_many> and C<many_to_many>
 relationships, the fields must be placed within a 
 L<Repeatable|HTML::FormFu::Element::Repeatable> element.
 This will output a repetition of the entire block for each row returned.
-L<HTML::FormFu::Element::Repeatable/increment_field_names> must be set on
-the Repeatable block.
+L<HTML::FormFu::Element::Repeatable/increment_field_names> must be true
+(which is the default value).
 
 The block's L<nested_name|HTML::FormFu::Element::Repeatable/nested_name>
 must be set to the name of the relationship.
@@ -853,11 +861,13 @@ arrayref of column names that must be filled in for the row to be added.
     element:
       - type: Repeatable
         nested_name: authors
-        increment_field_names: 1
         db: 
           new_empty_row: author
         
         elements:
+          - type: Hidden
+            name: id
+          
           - type: Text
             name: author
 
@@ -871,11 +881,13 @@ hashref to the name of that field.
     element:
       - type: Repeatable
         nested_name: authors
-        increment_field_names: 1
         db: 
           delete_if_true: delete
         
         elements:
+          - type: Hidden
+            name: id
+          
           - type: Text
             name: author
           

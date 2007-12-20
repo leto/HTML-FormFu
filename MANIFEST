@@ -332,11 +332,14 @@ t/elements/radio.t
 t/elements/radio_force_default.t
 t/elements/radio_retain_default.t
 t/elements/radiogroup.t
+t/elements/radiogroup_attrs_xml.t
+t/elements/radiogroup_dup_opt.t
 t/elements/radiogroup_errors.t
 t/elements/radiogroup_force_default.t
 t/elements/radiogroup_id.t
 t/elements/radiogroup_retain_default.t
 t/elements/radiogroup_subgroup.t
+t/elements/radiogroup_unknown_opt.t
 t/elements/render_method.t
 t/elements/repeatable_counter_name.t
 t/elements/repeatable_counter_name.yml
@@ -544,6 +547,8 @@ t/save_to_model/many_to_many_select.yml
 t/save_to_model/might_have.t
 t/save_to_model/might_have.yml
 t/save_to_model/might_have_create.t
+t/save_to_model/might_have_delete_if_empty.t
+t/save_to_model/might_have_delete_if_empty.yml
 t/save_to_model/nested.yml
 t/save_to_model/nested_create.t
 t/save_to_model/nested_create_checkbox.t
