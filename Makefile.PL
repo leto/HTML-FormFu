@@ -16,6 +16,7 @@ requires 'Email::Valid';
 requires 'File::ShareDir';
 requires 'HTML::Scrubber';
 requires 'HTML::TokeParser::Simple' => '3.14';
+requires 'HTTP::Headers' => '1.64';
 requires 'List::MoreUtils';
 requires 'Locale::Maketext::Simple';
 requires 'Module::Pluggable';
@@ -24,6 +25,7 @@ requires 'Regexp::Common';
 requires 'Task::Weaken'; # to ensure Scalar::Util was built with weaken()
 requires 'Template'; # form->start and ->end still require TT
                      # so does t/elements/render_method
+requires 'Test::MockObject';
 requires 'YAML::Syck';
 
 test_requires 'Test::NoWarnings';

@@ -6,7 +6,7 @@ use Class::C3;
 use Carp qw/ croak /;
 
 __PACKAGE__->mk_accessors(
-    qw/ _original_elements increment_field_names counter_name / );
+    qw/ _original_elements increment_field_names counter_name /);
 
 sub new {
     my $self = shift->next::method(@_);
@@ -56,7 +56,7 @@ sub repeat {
         $block->repeatable_count($rep);
 
         if ( $self->increment_field_names ) {
-            for my $field ( @{ $block->get_all_elements } ) {
+            for my $field ( @{ $block->get_fields } ) {
                 next unless $field->is_field;
 
                 if ( defined( my $name = $field->name ) ) {
@@ -82,9 +82,8 @@ sub repeat {
 
         my $block_fields = $block->get_fields;
 
-        my @others_constraints
-            = grep { $_->can('others') }
-            map    { @{ $_->_constraints } } @$block_fields;
+        my @others_constraints = grep { $_->can('others') }
+            map { @{ $_->_constraints } } @$block_fields;
 
         for my $constraint (@others_constraints) {
             my $others = $constraint->others;
@@ -139,7 +138,7 @@ sub process {
     }
 
     $self->repeat($count);
-    
+
     return $self->next::method(@_);
 }
 

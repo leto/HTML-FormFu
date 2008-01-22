@@ -30,6 +30,7 @@ requires:
   File::ShareDir: 0
   HTML::Scrubber: 0
   HTML::TokeParser::Simple: 3.14
+  HTTP::Headers: 1.64
   List::MoreUtils: 0
   Locale::Maketext::Simple: 0
   Module::Pluggable: 0
@@ -37,7 +38,8 @@ requires:
   Regexp::Copy: 0
   Task::Weaken: 0
   Template: 0
+  Test::MockObject: 0
   YAML::Syck: 0
   perl: 5.8.1
 tests: t/*.t t/*/*.t
-version: 0.02003
+version: 0.02004

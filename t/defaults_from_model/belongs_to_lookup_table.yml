@@ -10,6 +10,9 @@ elements:
   
   - type: Select
     name: type
+
+  - type: Select
+    name: type2_id
   
   - type: Submit
     name: submit

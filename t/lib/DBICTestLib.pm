@@ -31,8 +31,9 @@ CREATE TABLE master (
 	select_col     TEXT,
 	radio_col      TEXT,
 	radiogroup_col TEXT,
-	date_col       DATE,
+	date_col       DATETIME,
 	type           INTEGER,
+	type2_id       INTEGER,
 	not_in_form    TEXT
 );
 SQL
@@ -49,7 +50,8 @@ SQL
 CREATE TABLE user (
 	id     INTEGER PRIMARY KEY,
 	master INTEGER,
-	name   TEXT
+	name   TEXT,
+	title  TEXT
 );
 SQL
     
@@ -83,6 +85,14 @@ CREATE TABLE type (
 );
 INSERT INTO `type` (`type`) VALUES('foo');
 INSERT INTO `type` (`type`) VALUES('bar');
+SQL
+         $dbh->do( <<SQL );
+CREATE TABLE type2 (
+	id   INTEGER PRIMARY KEY,
+	type TEXT
+);
+INSERT INTO `type` (`type2`) VALUES('foo');
+INSERT INTO `type` (`type2`) VALUES('bar');
 SQL
     
 }

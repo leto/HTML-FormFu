@@ -5,6 +5,57 @@ use warnings;
 use Storable qw( dclone );
 use Carp qw( croak );
 
+sub options_from_model {
+    my ( $self, $base, $attrs ) = @_;
+
+    $attrs ||= {};
+
+    my $form    = $base->form;
+    my $context = $form->stash->{context};
+    my $schema  = $form->stash->{schema};
+    return if !defined $context and !defined $schema;
+    my $model = defined $schema ? $schema : $context->model( $attrs->{model} );
+    return if !defined $model;
+
+    $model = $model->resultset( $attrs->{resultset} )
+        if defined $attrs->{resultset};
+
+    my $rs         = $model->result_source;
+    my $id_col     = $attrs->{id_column};
+    my $label_col  = $attrs->{label_column};
+    my $condition  = $attrs->{condition};
+    my $attributes = $attrs->{attributes} || {};
+
+    if ( !defined $id_col ) {
+        ($id_col) = $rs->primary_columns;
+    }
+
+    if ( !defined $label_col ) {
+
+        # use first text column
+        ($label_col)
+            = grep { $rs->column_info($_)->{data_type} =~ /text|varchar/i }
+            $rs->columns;
+    }
+    $label_col = $id_col if !defined $label_col;
+
+    $attributes->{'-columns'} = [ $id_col, $label_col ];
+
+    my $result = $model->search( $condition, $attributes );
+
+    my @defaults;
+
+    if ( $attrs->{localize_label} ) {
+        @defaults = map { { value => $_->id_col, label_loc => $_->label_col, } }
+            $result->all;
+    }
+    else {
+        @defaults = map { [ $_->$id_col, $_->$label_col ] } $result->all;
+    }
+
+    return @defaults;
+}
+
 sub defaults_from_model {
     my ( $self, $base, $dbic, $attrs ) = @_;
 
@@ -17,204 +68,88 @@ sub defaults_from_model {
             && ( !defined $base->nested_name
                 || $base->nested_name ne $attrs->{nested_base} );
 
-    my $rs   = $dbic->result_source;
-    my @rels = $rs->relationships;
-    my @cols = $rs->columns;
+    my $rs = $dbic->result_source;
 
-    _fill_columns( $base, $dbic, $attrs, \@rels, \@cols );
-
-    _fill_relationships( $self, $base, $dbic, $form, $rs, $attrs, \@rels );
-
-    _fill_multi_value_fields_many_to_many( $base, $dbic, $attrs, \@rels,
-        \@cols );
-
-    _fill_repeatable_many_to_many( $self, $base, $dbic, $form, $rs, $attrs,
-        \@rels, \@cols );
+    _fill_in_fields( $base, $dbic, );
+    _fill_nested( $self, $base, $dbic, );
 
     return $form;
 }
 
-sub _fill_relationships {
-    my ( $self, $base, $dbic, $form, $rs, $attrs, $rels ) = @_;
+# returns 0 if there is a node with nested_name set on the path from $field to $base
+sub is_direct_child {
+    my ( $base, $field ) = @_;
 
-    for my $rel (@$rels) {
-        if ( defined $attrs->{from}
-            && $attrs->{from} eq $rs->related_source($rel)->result_class )
-        {
-            next;
-        }
+    while ( defined $field->parent ) {
+        $field = $field->parent;
 
-        my ($block)
-            = grep { !$_->is_field }
-            @{ $base->get_all_elements( { nested_name => $rel } ) };
-
-        my ($field) = grep {
-            defined $attrs->{nested_base}
-                ? $_->parent->nested_name eq $attrs->{nested_base}
-                : !$_->nested
-        } @{ $base->get_fields( { name => $rel } ) };
-
-        if ( defined $block && $block->is_repeatable ) {
-
-            # Handle has_many
-
-            next unless $block->increment_field_names;
-
-            # check there's a field name matching the PK
-
-            my ($pk) = $rs->related_source($rel)->primary_columns;
-
-            next
-                unless grep {
-                    $pk eq defined $_->original_name
-                        ? $_->original_name
-                        : $_->name
-                }
-                @{ $block->get_fields( { type => 'Hidden' } ) };
-
-            my @rows = $dbic->related_resultset($rel)->all;
-            my $count
-                = $block->db->{new_empty_row}
-                ? scalar @rows + 1
-                : scalar @rows;
-
-            my $blocks = $block->repeat($count);
-
-            for my $rep ( 0 .. $#rows ) {
-                defaults_from_model(
-                    $self,
-                    $blocks->[$rep],
-                    $rows[$rep],
-                    {   %$attrs,
-                        repeat_base => $rel,
-                        from        => $rs->result_class,
-                    } );
-            }
-
-            # set the counter field to the number of rows
-
-            if ( defined( my $param_name = $block->counter_name ) ) {
-                my $field = $form->get_field($param_name);
-
-                $field->default($count)
-                    if defined $field;
-            }
-        }
-        elsif ( defined $block ) {
-
-            # Handle 'might_have' and 'has_one'
-
-            if ( defined( my $row = $dbic->$rel ) ) {
-                defaults_from_model( $self, $block, $row,
-                    { %$attrs, nested_base => $rel, } );
-            }
-        }
-
-        #        elsif ( defined $field && !grep { $rel eq $_ } @cols ) {
-        #            # Handle 'belongs_to' relationships
-        #
-        #            if ( defined( my $row = $dbic->$rel ) ) {
-        #                # will break with multi-column PKs
-        #
-        #                my $rel  = $rs->related_source($rel);
-        #                my ($pk) = $rel->primary_columns;
-        #
-        #                $field->default( $row->$pk );
-        #            }
-        #        }
+        return 1 if $base == $field;
+        return 0 if defined $field->nested_name;
     }
-    return;
 }
 
-sub _fill_columns {
-    my ( $base, $dbic, $attrs, $rels, $cols ) = @_;
-
-    for my $col (@$cols) {
-        my $field;
-        if ( defined $attrs->{repeat_base} ) {
-            for my $f ( @{ $base->get_fields } ) {
-                next unless $f->nested_base eq $attrs->{repeat_base};
-                my $orig = $f->original_name;
-                next unless defined $orig && $orig eq $col;
-                $field = $f;
-                last;
-            }
-        }
-        else {
-            ($field) = grep {
-                defined $attrs->{nested_base}
-                    ? $_->nested_base eq $attrs->{nested_base}
-                    : !$_->nested
-            } @{ $base->get_fields( { name => $col } ) };
-        }
-
-        next if !defined $field;
-
-        if ( grep { $col eq $_ } @$rels ) {
-
-            # relationship of the same name, can't use accessor
-
-            $field->default( $dbic->get_column($col) );
-        }
-        else {
-            $field->default( $dbic->$col );
-        }
-    }
-    return;
-}
-
-sub _fill_multi_value_fields_many_to_many {
-    my ( $base, $dbic, $attrs, $rels, $cols ) = @_;
-
-    my @fields = grep {
-        defined $attrs->{nested_base}
-            ? $_->parent->nested_name eq $attrs->{nested_base}
-            : !$_->nested
-        }
-        grep { $_->multi_value }
-        grep { defined $_->name } @{ $base->get_fields };
-
-    for my $field (@fields) {
+# fills in values for all direct children fields of $base
+sub _fill_in_fields {
+    my ( $base, $dbic, ) = @_;
+    for my $field ( @{ $base->get_fields } ) {
         my $name = $field->name;
+        next if not defined $name;
+        next if not is_direct_child( $base, $field );
 
-        next if grep { $name eq $_ } @$rels, @$cols;
+        $name = $field->original_name if $field->original_name;
 
-        if ( $dbic->can($name) ) {
-            my ($col)
-                = exists $field->db->{default_column}
-                ? $field->db->{default_column}
-                : $dbic->$name->result_source->primary_columns;
+        my $accessor = exists $field->{db}{accessor}
+            ? $field->{db}{accessor}
+            : undef;
+            
+        if ( defined $accessor ) {
+            $field->default( $dbic->$accessor );
+        }
+        elsif ( $dbic->can($name) ) {
+            my $has_col = $dbic->result_source->has_column($name);
+            my $has_rel = $dbic->result_source->has_relationship($name);
 
-            my @defaults = $dbic->$name->get_column($col)->all;
+            if ( $has_col && $has_rel ) {
 
-            $field->default( \@defaults );
+                # can't use direct accessor, if there's a rel of the same name
+                $field->default( $dbic->get_column($name) );
+            }
+            elsif ( $has_col ) {
+                $field->default( $dbic->$name );
+            }
+            elsif ( $field->multi_value ) {
+                my ($col)
+                    = defined $field->db && exists $field->db->{default_column}
+                    ? $field->db->{default_column}
+                    : $dbic->$name->result_source->primary_columns;
+
+                my $info = $dbic->result_source->relationship_info($name);
+                if ( !defined $info or $info->{attrs}{accessor} eq 'multi' ) {
+                    my @defaults = $dbic->$name->get_column($col)->all;
+                    $field->default( \@defaults );
+                }
+            }
         }
     }
-    return;
 }
 
-sub _fill_repeatable_many_to_many {
-    my ( $self, $base, $dbic, $form, $rs, $attrs, $rels, $cols ) = @_;
+# loop over all child blocks with nested_name that is a method on the DBIC row
+# and recurse
+sub _fill_nested {
+    my ( $self, $base, $dbic ) = @_;
 
-    my @blocks = grep {
-            !$_->is_field 
-            && $_->is_repeatable 
-            && $_->increment_field_names
-            && defined $_->nested_name
-        }
-        @{ $base->get_all_elements };
-
-    for my $block (@blocks) {
+    for my $block ( @{ $base->get_all_elements } ) {
+        next if $block->is_field;
         my $rel = $block->nested_name;
-
-        next if grep { $rel eq $_ } @$rels, @$cols;
-
-        if ( $dbic->can($rel) ) {
+        # recursing only when $rel is a relation on $dbic
+        next unless defined $rel and ( 
+            $dbic->result_source->relationship_info($rel) or    
+            $dbic->can( $rel ) && $dbic->can( 'add_to_' . $rel ) # many_to_many 
+        ); 
+        if ( $block->is_repeatable && $block->increment_field_names ) {
 
             # check there's a field name matching the PK
-
             my ($pk) = $dbic->$rel->result_source->primary_columns;
-
             next
                 unless grep {
                 $pk eq
@@ -230,37 +165,35 @@ sub _fill_repeatable_many_to_many {
             my $blocks = $block->repeat($count);
 
             for my $rep ( 0 .. $#rows ) {
-                defaults_from_model(
-                    $self,
-                    $blocks->[$rep],
-                    $rows[$rep],
-                    {   %$attrs,
-                        repeat_base => $rel,
-                        from        => $rs->result_class,
-                    } );
+                defaults_from_model( $self, $blocks->[$rep], $rows[$rep], );
             }
 
             # set the counter field to the number of rows
 
             if ( defined( my $param_name = $block->counter_name ) ) {
-                my $field = $form->get_field($param_name);
+                my $field = $base->get_field($param_name);
 
                 $field->default($count)
                     if defined $field;
             }
-            
+
             # remove 'delete' checkbox from the last repetition ?
-            
+
             if ( $block->db->{new_empty_row} ) {
                 my $last_rep = $block->get_elements->[-1];
-                
-                my ( $del_field ) = 
-                    grep { $_->db->{delete_if_true} }
+
+                my ($del_field)
+                    = grep { $_->db->{delete_if_true} }
                     @{ $last_rep->get_fields };
-                
+
                 if ( defined $del_field ) {
-                    $last_rep->remove_element( $del_field );
+                    $last_rep->remove_element($del_field);
                 }
+            }
+        }
+        else {
+            if ( defined( my $row = $dbic->$rel ) ) {
+                defaults_from_model( $self, $block, $row );
             }
         }
     }
@@ -289,6 +222,8 @@ sub save_to_model {
 
     _save_columns( $base, $dbic, $form, $attrs, \%checkbox, \@rels, \@cols )
         or return;
+
+    _save_non_columns( $base, $dbic, $form );
 
     $dbic->update_or_insert;
 
@@ -361,7 +296,7 @@ sub _save_has_many {
 
     return
         unless grep { $_->original_name eq $pk }
-        @{ $block->get_fields( { type => 'Hidden' } ) };
+            @{ $block->get_fields( { type => 'Hidden' } ) };
 
     my @blocks = @{ $block->get_elements };
     my $max    = $#blocks;
@@ -380,7 +315,7 @@ sub _save_has_many {
 
         next if !defined $pk_field;
 
-        my $value = $form->param( $pk_field->nested_name );
+        my $value = $form->param_value( $pk_field->nested_name );
         my $row;
 
         if (   ( !defined $value || $value eq '' )
@@ -431,7 +366,7 @@ sub _insert_has_many {
         my $nested_name = $field->nested_name;
         return if !$form->valid($nested_name);
 
-        my $value = $form->param($nested_name);
+        my $value = $form->param_value($nested_name);
         return if !length $value;
     }
 
@@ -451,7 +386,7 @@ sub _delete_has_many {
 
     return
         unless $form->valid($nested_name)
-            && $form->param($nested_name);
+            && $form->param_value($nested_name);
 
     $row->delete;
 
@@ -481,19 +416,27 @@ sub _save_columns {
         else {
             $field = $base->get_field( { name => $col } );
         }
+        
+        next if defined $field
+            && exists $field->{db}{accessor}
+            && defined $field->{db}{accessor};
 
         my $nested_name = defined $field ? $field->nested_name : undef;
 
         my $value
             = defined $field
-            ? $form->param( $field->nested_name )
-            : ( grep { defined $attrs->{nested_base} 
+            ? $form->param_value( $field->nested_name )
+            : (
+            grep {
+                      defined $attrs->{nested_base}
                     ? defined $nested_name
                         ? $nested_name eq $_
                         : 0
-                    : $col eq $_ } @valid )
-                ? $form->param($col)
-                : undef;
+                    : $col eq $_
+                } @valid
+            )
+            ? $form->param_value($col)
+            : undef;
 
         if (   defined $field
             && $field->db->{delete_if_empty}
@@ -508,6 +451,8 @@ sub _save_columns {
                 || $data_type =~ m/^timestamp|date|int|float|numeric/i
             )
             && defined $value
+            # comparing to '' does not work for inflated objects
+            && ! ref $value 
             && $value eq ''
             )
         {
@@ -544,6 +489,35 @@ sub _save_columns {
     return 1;
 }
 
+sub _save_non_columns {
+    my ( $base, $dbic, $form, $attrs, $checkbox, $rels, $cols ) = @_;
+
+    my @fields =
+        grep { exists $_->{db}{accessor} && defined $_->{db}{accessor} } 
+        @{ $base->get_fields };
+
+    for my $field (@fields) {
+
+        my $value = $form->param_value( $field->nested_name );
+
+        if (   $field->db->{delete_if_empty}
+            && ( !defined $value || !length $value ) )
+        {
+            $dbic->discard_changes if $dbic->is_changed;
+            $dbic->delete;
+            return;
+        }
+
+        next if !defined $value;
+        
+        my $accessor = $field->{db}{accessor};
+
+        $dbic->$accessor($value);
+    }
+
+    return;
+}
+
 sub _save_multi_value_fields_many_to_many {
     my ( $base, $dbic, $form, $attrs, $rels, $cols ) = @_;
 
@@ -565,7 +539,7 @@ sub _save_multi_value_fields_many_to_many {
 
             next unless $form->valid($nested_name);
 
-            my @values = $form->param($nested_name);
+            my @values = $form->param_list($nested_name);
 
             my ($pk)
                 = exists $field->db->{default_column}
@@ -617,7 +591,7 @@ sub _save_repeatable_many_to_many {
 
                 next if !defined $pk_field;
 
-                my $value = $form->param( $pk_field->nested_name );
+                my $value = $form->param_value( $pk_field->nested_name );
                 my $row;
                 my $is_new;
 
@@ -683,7 +657,7 @@ sub _insert_many_to_many {
         my $nested_name = $field->nested_name;
         return if !$form->valid($nested_name);
 
-        my $value = $form->param($nested_name);
+        my $value = $form->param_value($nested_name);
         return if !length $value;
     }
 
@@ -705,7 +679,7 @@ sub _delete_many_to_many {
 
     return
         unless $form->valid($nested_name)
-            && $form->param($nested_name);
+            && $form->param_value($nested_name);
 
     my $remove = "remove_from_$rel";
 
@@ -916,6 +890,19 @@ L<db|HTML::FormFu::Element/db> hashref.
           db:
             default_column: foo
 
+
+=head3 non-column accessors
+
+To make a form field correspond to a method in your DBIx::Class schema, that 
+isn't a database column or relationship, set the C<accessor> key of the 
+field's L<db|HTML::FormFu::Element/db> hashref.
+
+    ---
+    element:
+      - type: Text
+        name: foo
+        db:
+          accessor: method_name
 
 =head2 save_to_model
 

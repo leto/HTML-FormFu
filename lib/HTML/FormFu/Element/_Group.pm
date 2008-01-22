@@ -23,7 +23,7 @@ my @ALLOWED_OPTION_KEYS = qw/
     label_attrs
     label_attributes_xml
     label_attrs_xml
-/;
+    /;
 
 sub new {
     my $self = shift->next::method(@_);
@@ -37,52 +37,11 @@ sub new {
 sub process {
     my ($self) = @_;
 
-    my $context = $self->form->stash->{context};
-    my $args    = $self->db;
+    my $args = $self->db;
 
-    if ( $args && $args->{model} && defined $context ) {
-
-        my $model = $context->model( $args->{model} );
-        return if !defined $model;
-
-        $model = $model->resultset( $args->{resultset} )
-            if defined $args->{resultset};
-
-        my $rs         = $model->result_source;
-        my $id_col     = $args->{id_column};
-        my $label_col  = $args->{label_column};
-        my $condition  = $args->{condition};
-        my $attributes = $args->{attributes} || {};
-
-        if ( !defined $id_col ) {
-            ($id_col) = $rs->primary_columns;
-        }
-
-        if ( !defined $label_col ) {
-
-            # use first text column
-            ($label_col)
-                = grep { $rs->column_info($_)->{data_type} =~ /text|varchar/i }
-                $rs->columns;
-        }
-        $label_col = $id_col if !defined $label_col;
-
-        $attributes->{'-columns'} = [ $id_col, $label_col ];
-
-        my $result = $model->search( $condition, $attributes );
-
-        my @defaults;
-
-        if ( $args->{localize_label} ) {
-            @defaults
-                = map { { value => $_->id_col, label_loc => $_->label_col, } }
-                $result->all;
-        }
-        else {
-            @defaults = map { [ $_->$id_col, $_->$label_col ] } $result->all;
-        }
-
-        $self->options( \@defaults );
+    if ( $args and keys %$args ) {
+        $self->options(
+            [ $self->form->model->options_from_model( $self, $args ) ] );
     }
 }
 
@@ -122,15 +81,17 @@ sub _parse_option {
     eval { my %x = %$item };
 
     if ( !$@ ) {
+
         # was passed a hashref
-        
+
         return $self->_parse_option_hashref($item);
     }
 
     eval { my @x = @$item };
     if ( !$@ ) {
+
         # was passed an arrayref
-        
+
         return {
             value            => $item->[0],
             label            => $item->[1],
@@ -144,16 +105,16 @@ sub _parse_option {
 
 sub _parse_option_hashref {
     my ( $self, $item ) = @_;
-    
+
     # sanity check options
     my @keys = keys %$item;
-    
+
     for my $key (@keys) {
         croak "unknown option argument: '$key'"
-            if !grep {$key eq $_} @ALLOWED_OPTION_KEYS;
-        
+            if !grep { $key eq $_ } @ALLOWED_OPTION_KEYS;
+
         my $short = $key;
-        
+
         if ( $short =~ s/attributes/attrs/ ) {
             for my $cmp (@keys) {
                 next if $cmp eq $key;
@@ -162,7 +123,7 @@ sub _parse_option_hashref {
             }
         }
     }
-    
+
     if ( exists $item->{group} ) {
         my @group = @{ $item->{group} };
         my @new;
@@ -177,50 +138,51 @@ sub _parse_option_hashref {
 
         return \%group;
     }
-    
+
     if ( !exists $item->{attributes} ) {
-        $item->{attributes} = exists $item->{attrs}
+        $item->{attributes}
+            = exists $item->{attrs}
             ? $item->{attrs}
             : {};
     }
-    
+
     if ( exists $item->{attributes_xml} ) {
         for my $key ( keys %{ $item->{attributes_xml} } ) {
-            $item->{attributes}{$key} = 
-                literal( $item->{attributes_xml}{$key} ); 
+            $item->{attributes}{$key}
+                = literal( $item->{attributes_xml}{$key} );
         }
     }
     elsif ( exists $item->{attrs_xml} ) {
         for my $key ( keys %{ $item->{attrs_xml} } ) {
-            $item->{attributes}{$key} = 
-                literal( $item->{attrs_xml}{$key} ); 
+            $item->{attributes}{$key} = literal( $item->{attrs_xml}{$key} );
         }
     }
-    
+
     if ( !exists $item->{label_attributes} ) {
-        $item->{label_attributes} = exists $item->{label_attrs}
+        $item->{label_attributes}
+            = exists $item->{label_attrs}
             ? $item->{label_attrs}
             : {};
     }
-    
+
     if ( exists $item->{label_attributes_xml} ) {
         for my $key ( keys %{ $item->{label_attributes_xml} } ) {
-            $item->{label_attributes}{$key} = 
-                literal( $item->{label_attributes_xml}{$key} ); 
+            $item->{label_attributes}{$key}
+                = literal( $item->{label_attributes_xml}{$key} );
         }
     }
     elsif ( exists $item->{label_attrs_xml} ) {
         for my $key ( keys %{ $item->{label_attrs_xml} } ) {
-            $item->{label_attributes}{$key} = 
-                literal( $item->{label_attrs_xml}{$key} ); 
+            $item->{label_attributes}{$key}
+                = literal( $item->{label_attrs_xml}{$key} );
         }
     }
-    
+
     $item->{label} = $self->form->localize( $item->{label_loc} )
         if defined $item->{label_loc};
-    
+
     $item->{value} = '' if !defined $item->{value};
-    
+
     return $item;
 }
 

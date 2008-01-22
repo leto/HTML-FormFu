@@ -1,0 +1,19 @@
+---
+auto_fieldset: 1
+
+elements:
+  - type: Hidden
+    name: id
+  
+  - type: Text
+    name: name
+  
+  - type: Select
+    name: addresses
+    db:
+  
+  - type: Hidden
+    name: count
+  
+  - type: Submit
+    name: submit

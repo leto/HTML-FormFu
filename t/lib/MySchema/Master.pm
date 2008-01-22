@@ -22,8 +22,9 @@ __PACKAGE__->add_columns(
     select_col     => { data_type => "TEXT" },
     radio_col      => { data_type => "TEXT" },
     radiogroup_col => { data_type => "TEXT" },
-    date_col       => { data_type => "DATE" },
+    date_col       => { data_type => "DATETIME" },
     type           => { data_type => "INTEGER" },
+    type2_id       => { data_type => "INTEGER" },
     not_in_form    => { data_type => "TEXT" },
 );
 
@@ -36,6 +37,10 @@ __PACKAGE__->has_one( user => 'MySchema::User', 'master' );
 __PACKAGE__->belongs_to(
     type => 'MySchema::Type',
     { 'foreign.id' => 'self.type' } );
+
+__PACKAGE__->belongs_to(
+    type2 => 'MySchema::Type2',
+    { 'foreign.id' => 'self.type2_id' } );
 
 1;
 

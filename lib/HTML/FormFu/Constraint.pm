@@ -20,10 +20,7 @@ sub process {
     # check when condition
     return unless $self->_process_when($params);
 
-    if ( ref $value ) {
-        eval { my @x = @$value };
-        croak $@ if $@;
-
+    if ( ref $value eq 'ARRAY' ) {
         push @errors, eval { $self->constrain_values( $value, $params ); };
         if ($@) {
             push @errors,
@@ -240,8 +237,8 @@ See L<HTML::FormFu/force_errors> for details.
 
 =head2 parent
 
-Returns the L<HTML::FormFu::Element::_Field> object that the constraint is 
-associated with.
+Returns the L<field|HTML::FormFu::Element::_Field> object that the constraint 
+is associated with.
 
 =head2 form
 

@@ -33,7 +33,7 @@ __PACKAGE__->mk_accessors(
         /
 );
 
-__PACKAGE__->mk_inherited_accessors( qw/ tt_args render_method / );
+__PACKAGE__->mk_inherited_accessors(qw/ tt_args render_method /);
 
 __PACKAGE__->mk_inherited_merging_accessors(qw/ config_callback /);
 
@@ -366,12 +366,13 @@ Return Value: $string
 
 =head2 parent
 
-Returns the L<HTML::FormFu::Element> or L<HTML::FormFu> object that this 
-element is attached to.
+Returns the L<block element|HTML::FormFu::Element> or L<form|HTML::FormFu> 
+object that this element is attached to.
 
 =head2 form
 
-Returns the L<HTML::FormFu> object that this element is attached to.
+Returns the L<HTML::FormFu> object that the constraint's field is attached 
+to.
 
 =head2 clone
 
