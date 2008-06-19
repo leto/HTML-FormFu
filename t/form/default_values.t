@@ -5,16 +5,16 @@ use Test::More tests => 3;
 
 use HTML::FormFu;
 
-my $form = HTML::FormFu->new;
+my $form = HTML::FormFu->new({ tt_args => { INCLUDE_PATH => 'share/templates/tt/xhtml' } });
 
 $form->element('Text')->name('foo');
 
 $form->element('Checkbox')->name('bar')->value('y');
 
-$form->default_values({
-    foo => 'x',
-    bar => 'y',
-});
+$form->default_values( {
+        foo => 'x',
+        bar => 'y',
+    } );
 
 $form->process;
 

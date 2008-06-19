@@ -5,7 +5,7 @@ use Test::More tests => 1;
 
 use HTML::FormFu;
 
-my $form = HTML::FormFu->new;
+my $form = HTML::FormFu->new({ tt_args => { INCLUDE_PATH => 'share/templates/tt/xhtml' } });
 $form->load_config_file('t/elements/simple_table_class.yml');
 
 my $xhtml = <<EOF;
@@ -19,23 +19,23 @@ foo
 </tr>
 <tr class="x">
 <td>
-<span class="text">
+<div class="text">
 <input name="foo" type="text" />
-</span>
+</div>
 </td>
 </tr>
 <tr class="y">
 <td>
-<span class="text">
+<div class="text">
 <input name="bar" type="text" />
-</span>
+</div>
 </td>
 </tr>
 <tr class="x">
 <td>
-<span class="text">
+<div class="text">
 <input name="baz" type="text" />
-</span>
+</div>
 </td>
 </tr>
 </table>

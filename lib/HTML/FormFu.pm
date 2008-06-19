@@ -19,7 +19,7 @@ use HTML::FormFu::ObjectUtil qw/
     clone stash constraints_from_dbic parent
     get_nested_hash_value set_nested_hash_value nested_hash_key_exists /;
 use HTML::FormFu::Util qw/ require_class _get_elements xml_escape
-    split_name _parse_args process_attrs /;
+    split_name _parse_args process_attrs _filter_components /;
 
 use List::MoreUtils qw/ uniq /;
 use Scalar::Util qw/ blessed refaddr weaken /;
@@ -44,9 +44,10 @@ __PACKAGE__->mk_accessors(
     qw/ indicator filename javascript javascript_src
         element_defaults query_type languages force_error_message
         localize_class submitted query input _auto_fieldset
-        _elements _processed_params _valid_names
-        _output_processors tt_module
-        nested_name nested_subscript model_class _model /
+        _elements _processed_params _valid_names  _models
+        _output_processors tt_module params_ignore_underscore
+        nested_name nested_subscript default_model tmp_upload_dir
+        _plugins /
 );
 
 __PACKAGE__->mk_output_accessors(qw/ form_error_message /);
@@ -69,8 +70,10 @@ __PACKAGE__->mk_inherited_merging_accessors(qw/ tt_args config_callback /);
 *transformers      = \&transformer;
 *output_processors = \&output_processor;
 *loc               = \&localize;
+*plugins           = \&plugin;
+*add_plugins       = \&add_plugin;
 
-our $VERSION = '0.02004';
+our $VERSION = '0.03000';
 $VERSION = eval $VERSION;
 
 Class::C3::initialize();
@@ -88,6 +91,8 @@ sub new {
         _elements          => [],
         _output_processors => [],
         _valid_names       => [],
+        _plugins           => [],
+        _models            => [],
         _processed_params  => {},
         input              => {},
         stash              => {},
@@ -100,10 +105,10 @@ sub new {
         tt_module          => 'Template',
         query_type         => 'CGI',
         languages          => ['en'],
+        default_model      => 'DBIC',
         localize_class     => 'HTML::FormFu::I18N',
         auto_error_class   => 'error_%s_%t',
         auto_error_message => 'form_%s_%t',
-        model_class        => 'DBIC',
     );
 
     $self->populate( \%defaults );
@@ -148,31 +153,59 @@ sub default_values {
 }
 
 sub model {
-    my ($self) = @_;
+    my ( $self, $model_name ) = @_;
 
-    if ( defined( my $model = $self->_model ) ) {
-        return $model;
+    $model_name = $self->default_model
+        if !defined $model_name;
+
+    for my $model (@{ $self->_models }) {
+        return $model
+            if $model->type =~ /\Q$model_name\E$/;
     }
 
-    my $class = "HTML::FormFu::Model::" . $self->model_class;
+    # class not found, try require-ing it
+
+    my $class = $model_name =~ s/^\+// 
+        ? $model_name
+        : "HTML::FormFu::Model::$model_name";
 
     require_class($class);
 
-    $self->_model($class);
+    my $model = $class->new({
+       type   => $model_name,
+       parent => $self, 
+    });
 
-    return $class;
+    push @{ $self->_models }, $model;
+
+    return $model;
+}
+
+sub model_class {
+    my $self = shift;
+
+    warn "model_class() method deprecated and is provided for compatibilty only, "
+        . "and will be removed: use default_model instead\n";
+
+    return $self->default_model(@_);
 }
 
 sub defaults_from_model {
     my $self = shift;
 
-    return $self->model->defaults_from_model( $self, @_ );
+    warn "defaults_from_model() method deprecated and is provided for compatibility only, "
+        . "and will be removed: use \$form->model->default_values() instead\n";
+
+    return $self->model->default_values(@_);
 }
 
 sub save_to_model {
     my $self = shift;
 
-    return $self->model->save_to_model( $self, @_ );
+    warn "save_to_model() method deprecated and is provided for compatibility only, "
+        . "and will be removed: use \$form->model->update() instead\n";
+
+    return $self->model->update(@_);
 }
 
 sub process {
@@ -198,6 +231,12 @@ sub process {
         $self->query($query);
     }
 
+    my $plugins = $self->get_plugins;
+
+    for my $plugin ( @$plugins ) {
+        $plugin->process;
+    }
+
     for my $elem ( @{ $self->get_elements } ) {
         $elem->process;
     }
@@ -213,38 +252,47 @@ sub process {
 
     $self->submitted($submitted);
 
-    return if !$submitted;
+    if ( $submitted ) {
+        my %param;
+        my @params = $query->param;
 
-    my %param;
-    my @params = $query->param;
+        for my $field ( @{ $self->get_fields } ) {
+            my $name = $field->nested_name;
 
-    for my $field ( @{ $self->get_fields } ) {
-        my $name = $field->nested_name;
+            next if !defined $name;
+            next if !grep { $name eq $_ } @params;
 
-        next if !defined $name;
-        next if !grep { $name eq $_ } @params;
+            if ( $field->nested ) {
+                my @values = $query->param($name);
 
-        if ( $field->nested ) {
-            my @values = $query->param($name);
+                my $value = @values > 1 ? \@values : $values[0];
 
-            my $value = @values > 1 ? \@values : $values[0];
+                $self->set_nested_hash_value( \%param, $name, $value );
+            }
+            else {
+                my @values = $query->param($name);
 
-            $self->set_nested_hash_value( \%param, $name, $value );
+                $param{$name} = @values > 1 ? \@values : $values[0];
+            }
         }
-        else {
-            my @values = $query->param($name);
 
-            $param{$name} = @values > 1 ? \@values : $values[0];
+        for my $field ( @{ $self->get_fields } ) {
+            $field->process_input( \%param );
         }
+
+        $self->input( \%param );
+
+        $self->_process_input;
     }
 
-    for my $field ( @{ $self->get_fields } ) {
-        $field->process_input( \%param );
+    # post_process
+    for my $elem ( @{ $self->get_elements } ) {
+        $elem->post_process;
     }
 
-    $self->input( \%param );
-
-    $self->_process_input;
+    for my $plugin ( @$plugins ) {
+        $plugin->post_process;
+    }
 
     return;
 }
@@ -514,14 +562,17 @@ sub _transform_input {
 sub _build_valid_names {
     my ($self) = @_;
 
-    my $params = $self->_processed_params;
-    my @errors = $self->has_errors;
+    my $params       = $self->_processed_params;
+    my $skip_private = $self->params_ignore_underscore;
+    my @errors       = $self->has_errors;
     my @names;
     my %non_param;
 
     for my $field ( @{ $self->get_fields } ) {
         my $name = $field->nested_name;
         next if !defined $name;
+
+        next if $skip_private && $field->name =~ /^_/;
 
         if ( $field->non_param ) {
             $non_param{$name} = 1;
@@ -532,6 +583,7 @@ sub _build_valid_names {
     }
 
     push @names, grep { ref $params->{$_} ne 'HASH' }
+        grep { !( $skip_private && /^_/ ) }
         grep { !exists $non_param{$_} }
         keys %$params;
 
@@ -766,14 +818,72 @@ sub add_valid {
 
     croak 'add_valid requires arguments ($key, $value)' unless @_ == 3;
 
-    $self->input->{$key} = $value;
+    $self->set_nested_hash_value( $self->input, $key, $value );
 
-    $self->_processed_params->{$key} = $value;
+    $self->set_nested_hash_value( $self->_processed_params, $key, $value );
 
     push @{ $self->_valid_names }, $key
         if !grep { $_ eq $key } @{ $self->_valid_names };
 
     return $value;
+}
+
+sub _single_plugin {
+    my ( $self, $arg ) = @_;
+
+    if ( !ref $arg ) {
+        $arg = { type => $arg };
+    }
+    elsif ( ref $arg eq 'HASH' ) {
+        $arg = { %$arg }; # shallow clone
+    }
+    else {
+        croak 'invalid args';
+    }
+
+    my $type = delete $arg->{type};
+    my @return;
+
+    my @names = map { ref $_ ? @$_ : $_ }
+        grep {defined} ( delete $arg->{name}, delete $arg->{names} );
+
+    if (@names) {
+        # add plugins to appropriate fields
+        for my $x (@names) {
+            for my $field ( @{ $self->get_fields( { nested_name => $x } ) } ) {
+                my $new = $field->_require_plugin( $type, $arg );
+                push @{ $field->_plugins }, $new;
+                push @return, $new;
+            }
+        }
+    }
+    else {
+        # add plugin directly to form
+        my $new = $self->_require_plugin( $type, $arg );
+
+        push @{ $self->_plugins }, $new;
+        push @return, $new;
+    }
+
+    return @return;
+}
+
+sub render {
+    my $self = shift;
+
+    my $plugins = $self->get_plugins;
+
+    for my $plugin ( @$plugins ) {
+        $plugin->render;
+    }
+
+    my $output = $self->next::method(@_);
+
+    for my $plugin ( @$plugins ) {
+        $plugin->post_render( \$output );
+    }
+
+    return $output;
 }
 
 sub render_data {
@@ -987,16 +1097,20 @@ HTML::FormFu - HTML Form Creation, Rendering and Validation Framework
 
 =head1 BETA SOFTWARE
 
-Please note that this is beta software.
-
 There may be API changes required before the 1.0 release. Any incompatible 
 changes will first be discussed on the L<mailing list|/SUPPORT>.
+See L</DEPRECATION POLICY> for further details.
 
 Work is still needed on the documentation, if you come across any errors or 
 find something confusing, please give feedback via the 
 L<mailing list|/SUPPORT>.
 
 =head1 SYNOPSIS
+
+Note: These examples make use of L<HTML::FormFu::Model::DBIC>. As of
+C<HTML::FormFu> v02.005, the L<HTML::FormFu::Model::DBIC> module is
+not bundled with C<HTML::FormFu> and is available in a stand-alone
+distribution.
 
     use HTML::FormFu;
 
@@ -1038,13 +1152,13 @@ If you're using L<Catalyst>, a more suitable example might be:
         
         if ( $form->submitted_and_valid ) {
             
-            $form->save_to_model( $user );
+            $form->model->update( $user );
             
             $c->res->redirect( $c->uri_for( "/user/$id" ) );
             return;
         }
         
-        $form->defaults_from_model( $user )
+        $form->model->default_values( $user )
             if ! $form->submitted;
         
     }
@@ -1260,12 +1374,12 @@ A few examples and their output, to demonstrate:
         name: bar
 
     <form action="" method="post">
-      <span class="text">
+      <div class="text">
         <input name="foo" type="text" />
-      </span>
-      <span class="text">
+      </div>
+      <div class="text">
         <input name="bar" type="text" />
-      </span>
+      </div>
     </form>
 
 2 elements with an L</auto_fieldset>.
@@ -1280,12 +1394,12 @@ A few examples and their output, to demonstrate:
 
     <form action="" method="post">
       <fieldset>
-        <span class="text">
+        <div class="text">
           <input name="foo" type="text" />
-        </span>
-        <span class="text">
+        </div>
+        <div class="text">
           <input name="bar" type="text" />
-        </span>
+        </div>
       </fieldset>
     </form>
 
@@ -1304,17 +1418,17 @@ The 3rd element is within a new fieldset
 
     <form action="" method="post">
       <fieldset id="fs">
-        <span class="text">
+        <div class="text">
           <input name="foo" type="text" />
-        </span>
-        <span class="text">
+        </div>
+        <div class="text">
           <input name="bar" type="text" />
-        </span>
+        </div>
       </fieldset>
       <fieldset>
-        <span class="text">
+        <div class="text">
           <input name="baz" type="text" />
-        </span>
+        </div>
       </fieldset>
     </form>
 
@@ -1521,7 +1635,18 @@ you must use C<clone>:
     
     $form2->insert_after( $new, $position );
 
-=head2 insert_after
+=head2 remove_element
+
+Arguments: $element
+
+Return Value: $element
+
+Removes the C<$element> from the form or block's array of children.
+
+    $form->remove_element( $element );
+
+The orphaned element cannot be usefully used for anything until it is 
+re-attached to a form or block with L</insert_before> or L</insert_after>.
 
 =head1 FORM LOGIC AND VALIDATION
 
@@ -1735,6 +1860,16 @@ the form, a block element, an element or a single constraint. When the value
 is read, if no value is defined it automatically traverses the element's 
 hierarchy of parents, through any block elements and up to the form, 
 searching for a defined value.
+
+=head2 params_ignore_underscore
+
+If true, causes L</params>, L</param> and L</valid> to ignore any fields
+whose name starts with an underscore C<_>.
+
+The field is still processed as normal, and errors will cause 
+L</submitted_and_valid> to return false.
+
+Default Value: false
 
 =head1 FORM ATTRIBUTES
 
@@ -2248,6 +2383,26 @@ Return Value: $error
 Accepts the same arguments as L</get_errors>, but only returns the first 
 error found.
 
+=head1 MODEL / DATABASE INTERACTION
+
+See L<HTML::FormFu::Model> for further details and available models.
+
+=head2 default_model
+
+Arguments: $model_name
+
+Default Value: 'DIBC'
+
+=head2 model
+
+Arguments: [$model_name]
+
+Return Value: $model
+
+=head2 model_config
+
+Arguments: \%config
+
 =head1 MODIFYING A SUBMITTED FORM
 
 =head2 add_valid
@@ -2292,6 +2447,13 @@ Implicitly uses the C<tt> L</render_method>.
 Return Value: $string
 
 Returns all hidden form fields.
+
+=head1 PLUGIN SYSTEM
+
+C<HTML::FormFu> provides a plugin-system that allows plugins to be easily
+added to a form or element, to change the default behaviour or output.
+
+See L<HTML::FormFu::Plugin> for details.
 
 =head1 ADVANCED CUSTOMISATION
 
@@ -2679,6 +2841,40 @@ Returns a deep clone of the <$form> object.
 
 Because of scoping issues, code references (such as in Callback constraints) 
 are copied instead of cloned.
+
+=head1 DEPRECATED METHODS
+
+=head2 model_class
+
+Is deprecated and provided only for backwards compatability. Will be removed
+at some point in the future.
+
+Use L</default_model> instead.
+
+=head2 defaults_from_model
+
+Is deprecated and provided only for backwards compatability. Will be removed
+at some point in the future.
+
+Use L<HTML::FormFu::Model/default_values> instead.
+
+    $form->model->default_values( $object, \%config )
+
+=head2 save_to_model
+
+Is deprecated and provided only for backwards compatability. Will be removed
+at some point in the future.
+
+Use L<HTML::FormFu::Model/update> instead.
+
+    $form->model->update( $object, \%config )
+
+=head1 DEPRECATION POLICY
+
+We try our best to not make incompatable changes, but if they're required
+we'll make every effort possible to provide backwards compatibility for
+several release-cycles, issuing a warnings about the changes, before removing
+the legacy features.
 
 =head1 BEST PRACTICES
 

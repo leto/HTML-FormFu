@@ -5,7 +5,7 @@ use Test::More tests => 2;
 
 use HTML::FormFu;
 
-my $form = HTML::FormFu->new;
+my $form = HTML::FormFu->new({ tt_args => { INCLUDE_PATH => 'share/templates/tt/xhtml' } });
 
 $form->load_config_file('t/output_processors/strip_whitespace.yml');
 
@@ -15,23 +15,23 @@ $form->load_config_file('t/output_processors/strip_whitespace.yml');
 <fieldset>
 <legend>fieldset</legend>
 <input name="hidden" type="hidden" value="1" />
-<span class="text label">
+<div class="text label">
 <label>Foo</label>
 <input name="foo" type="text" />
-</span>
-<span class="textarea">
+</div>
+<div class="textarea">
 <textarea name="textarea" cols="40" rows="20">foo
 bar
 </textarea>
-</span>
-<span class="select">
+</div>
+<div class="select">
 <select name="select">
 <option value="a">A</option>
 <option value="b">B</option>
 <option value="d">D</option>
 </select>
-</span>
-<span class="select">
+</div>
+<div class="select">
 <select name="select2">
 <option value="1">one</option>
 <optgroup>
@@ -39,13 +39,13 @@ bar
 <option value="3">three</option>
 </optgroup>
 </select>
-</span>
-<span class="multi">
+</div>
+<div class="multi">
 <span class="elements">
 <input name="multi1" type="text" />
 <input name="multi2" type="text" />
 </span>
-</span>
+</div>
 <fieldset class="radiogroup">
 <span>
 <span>
@@ -80,9 +80,9 @@ bar
 </span>
 </span>
 </fieldset>
-<span class="radio">
+<div class="radio">
 <input name="radio" type="radio" />
-</span>
+</div>
 <table class="simpletable">
 <tr>
 <th>
@@ -94,9 +94,9 @@ bar
 </tr>
 <tr>
 <td>
-<span class="text">
+<div class="text">
 <input name="table1" type="text" />
-</span>
+</div>
 </td>
 <td>
 <div>
@@ -106,9 +106,9 @@ foo
 </tr>
 <tr>
 <td>
-<span class="text">
+<div class="text">
 <input name="table2" type="text" />
-</span>
+</div>
 </td>
 <td>
 <div>
@@ -118,9 +118,9 @@ bar
 </tr>
 </table>
 <hr />
-<span class="submit">
+<div class="submit">
 <input name="submit" type="submit" />
-</span>
+</div>
 </fieldset>
 </form>
 XHTML
@@ -133,21 +133,23 @@ $form->output_processor('StripWhitespace');
 {
     my $xhtml
         = qq{<form action="" method="post"><fieldset><legend>fieldset</legend><input name="hidden" type="hidden" value="1" />
-<span class="text label">
+<div class="text label">
 <label>Foo</label>
 <input name="foo" type="text" />
-</span><span class="textarea">
+</div><div class="textarea">
 <textarea name="textarea" cols="40" rows="20">foo
 bar
 </textarea>
-</span><span class="select">
+</div><div class="select">
 <select name="select"><option value="a">A</option><option value="b">B</option><option value="d">D</option></select>
-</span><span class="select">
+</div><div class="select">
 <select name="select2"><option value="1">one</option><optgroup><option value="2">two</option><option value="3">three</option></optgroup></select>
-</span><span class="multi"><span class="elements">
+</div><div class="multi">
+<span class="elements">
 <input name="multi1" type="text" />
 <input name="multi2" type="text" />
-</span></span><fieldset class="radiogroup"><span><span>
+</span>
+</div><fieldset class="radiogroup"><span><span>
 <input name="radiogroup" type="radio" value="a" />
 <label>A</label>
 </span><span>
@@ -165,19 +167,16 @@ bar
 </span><span>
 <input name="radiogroup2" type="radio" value="3" />
 <label>three</label>
-</span></span></span></fieldset><span class="radio">
+</span></span></span></fieldset><div class="radio">
 <input name="radio" type="radio" />
-</span><table class="simpletable"><tr><th>foo</th><th>bar</th></tr><tr><td><span class="text">
+</div><table class="simpletable"><tr><th>foo</th><th>bar</th></tr><tr><td><div class="text">
 <input name="table1" type="text" />
-</span></td><td><div>
-foo
-</div></td></tr><tr><td><span class="text">
+</div></td><td><div>
+foo</div></td></tr><tr><td><div class="text">
 <input name="table2" type="text" />
-</span></td><td><div>
-bar
-</div></td></tr></table><hr /><span class="submit">
+</div></td><td><div>
+bar</div></td></tr></table><hr /><div class="submit">
 <input name="submit" type="submit" />
-</span></fieldset></form>};
-
+</div></fieldset></form>};
     is( "$form", $xhtml );
 }

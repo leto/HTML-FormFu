@@ -6,8 +6,7 @@ use Test::More tests => 1;
 use HTML::FormFu;
 
 my $form = HTML::FormFu->new( {
-        elements => [
-            {
+        elements => [ {
                 type     => 'Multi',
                 label    => 'My multi',
                 elements => [ {
@@ -16,7 +15,8 @@ my $form = HTML::FormFu->new( {
                     },
                     {   type => 'Radio',
                         name => 'bar',
-                    } ],
+                    }
+                ],
             },
             { type => 'Submit' },
         ],
@@ -25,11 +25,11 @@ my $form = HTML::FormFu->new( {
 
 $form->tt_args( { INCLUDE_PATH => 'share/templates/tt/xhtml' } );
 $form->indicator( sub {1} );
-$form->process(       {} );
+$form->process( {} );
 
 my $xhtml = <<EOF;
 <form action="" method="post">
-<span class="multi label error error_constraint_required">
+<div class="multi label error error_constraint_required">
 <span class="error_message error_constraint_required">This field is required</span>
 <span class="error_message error_constraint_required">This field is required</span>
 <label>My multi</label>
@@ -37,10 +37,10 @@ my $xhtml = <<EOF;
 <input name="foo" type="text" />
 <input name="bar" type="radio" />
 </span>
-</span>
-<span class="submit">
+</div>
+<div class="submit">
 <input type="submit" />
-</span>
+</div>
 </form>
 EOF
 

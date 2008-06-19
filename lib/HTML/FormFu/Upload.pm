@@ -3,8 +3,11 @@ package HTML::FormFu::Upload;
 use strict;
 use Carp qw( croak );
 
+use HTML::FormFu::Attribute qw( mk_accessors );
 use HTML::FormFu::ObjectUtil qw( form parent populate );
-use Scalar::Util qw/ weaken /;
+use HTML::FormFu::UploadParam;
+
+__PACKAGE__->mk_accessors(qw/ headers filename size type /);
 
 sub new {
     my $class = shift;
@@ -24,12 +27,18 @@ sub _param {
     my $self = shift;
 
     if (@_) {
-        $self->{_param} = shift;
+        my $param = shift;
 
-        weaken( $self->{_param} );
+        $param = HTML::FormFu::UploadParam->new({
+            param => $param,
+        });
+
+        $param->form($self->form);
+
+        $self->{_param} = $param;
     }
 
-    return $self->{_param};
+    return defined $self->{_param} ? $self->{_param}->param : ();
 }
 
 1;

@@ -5,13 +5,13 @@ use Test::More tests => 2;
 
 use HTML::FormFu;
 
-my $form = HTML::FormFu->new;
+my $form = HTML::FormFu->new({ tt_args => { INCLUDE_PATH => 'share/templates/tt/xhtml' } });
 
 my $element = $form->element('File')->name('foo');
 
-my $field_xhtml = qq{<span class="file">
+my $field_xhtml = qq{<div class="file">
 <input name="foo" type="file" />
-</span>};
+</div>};
 
 is( "$element", $field_xhtml );
 

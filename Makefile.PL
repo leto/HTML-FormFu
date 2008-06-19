@@ -1,4 +1,4 @@
-use inc::Module::Install;
+use inc::Module::Install 0.75;
 
 name 'HTML-FormFu';
 perl_version '5.008001';
@@ -7,9 +7,12 @@ all_from 'lib/HTML/FormFu.pm';
 requires 'Class::Accessor::Chained::Fast';
 requires 'Class::C3';
 requires 'Config::Any' => '0.10'; # supports multi-doc config files
+requires 'Crypt::CBC';
+requires 'Crypt::DES';
 requires 'Data::Visitor::Callback';
 requires 'Date::Calc';
 requires 'DateTime::Format::Builder' => '0.7901'; # fixes memory leaks
+requires 'DateTime::Format::Natural';
 requires 'DateTime::Format::Strptime';
 requires 'DateTime::Locale';
 requires 'Email::Valid';
@@ -25,7 +28,6 @@ requires 'Regexp::Common';
 requires 'Task::Weaken'; # to ensure Scalar::Util was built with weaken()
 requires 'Template'; # form->start and ->end still require TT
                      # so does t/elements/render_method
-requires 'Test::MockObject';
 requires 'YAML::Syck';
 
 test_requires 'Test::NoWarnings';

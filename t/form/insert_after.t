@@ -1,21 +1,43 @@
 use strict;
 use warnings;
 
-use Test::More tests => 3;
+use Test::More tests => 7;
 
 use HTML::FormFu;
 
-my $form = HTML::FormFu->new;
+{
+    my $form = HTML::FormFu->new;
+    
+    my $e1 = $form->element('Text')->name('foo');
+    my $e2 = $form->element('Hidden')->name('foo');
+    
+    my $e3 = $e1->clone;
+    
+    $form->insert_after( $e3, $e1 );
+    
+    my $elems = $form->get_elements;
+    
+    is( scalar(@$elems), 3 );
+    
+    ok( $elems->[0] == $e1 );
+    ok( $elems->[1] == $e3 );
+    ok( $elems->[2] == $e2 );
+}
 
-my $e1 = $form->element('Text')->name('foo');
-my $e2 = $form->element('Hidden')->name('foo');
+# ensure elements only occur once
 
-my $e3 = $e1->clone;
-
-$form->insert_after( $e3, $e1 );
-
-my $elems = $form->get_elements;
-
-is( $elems->[0], $e1 );
-is( $elems->[1], $e3 );
-is( $elems->[2], $e2 );
+{
+    my $form = HTML::FormFu->new;
+    
+    my $e1 = $form->element({ name => 'foo' });
+    my $e2 = $form->element({ name => 'bar' });
+    
+    $form->insert_after( $e1, $e2 );
+    
+    my $elems = $form->get_elements;
+    
+    is( scalar(@$elems), 2 );
+    
+    ok( $elems->[0] == $e2 );
+    ok( $elems->[1] == $e1 );
+}

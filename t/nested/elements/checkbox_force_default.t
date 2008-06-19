@@ -6,16 +6,20 @@ use Test::NoWarnings;
 
 use HTML::FormFu;
 
-my $form = HTML::FormFu->new;
+my $form = HTML::FormFu->new({ tt_args => { INCLUDE_PATH => 'share/templates/tt/xhtml' } });
 
 $form->auto_fieldset( { nested_name => 'cb' } );
 
 $form->element('Checkbox')->name('foo')->value('a')->force_default(1);
 $form->element('Checkbox')->name('fox')->value('b')->force_default(1);
-$form->element('Checkbox')->name('bar')->value('c')->default('c')->force_default(1);
-$form->element('Checkbox')->name('bax')->value('d')->default('d')->force_default(1);
-$form->element('Checkbox')->name('moo')->value('e')->checked('checked')->force_default(1);
-$form->element('Checkbox')->name('mox')->value('f')->checked('checked')->force_default(1);
+$form->element('Checkbox')->name('bar')->value('c')->default('c')
+    ->force_default(1);
+$form->element('Checkbox')->name('bax')->value('d')->default('d')
+    ->force_default(1);
+$form->element('Checkbox')->name('moo')->value('e')->checked('checked')
+    ->force_default(1);
+$form->element('Checkbox')->name('mox')->value('f')->checked('checked')
+    ->force_default(1);
 
 $form->process( {
         "cb.foo" => '',

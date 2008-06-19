@@ -1,13 +1,14 @@
 package HTML::FormFu::Element::Date;
 
 use strict;
-use base 'HTML::FormFu::Element::_Field', 'HTML::FormFu::Element::Multi';
+use base 'HTML::FormFu::Element::Multi';
 use Class::C3;
 
 use HTML::FormFu::Attribute qw/ mk_attrs /;
-use HTML::FormFu::Util qw/ _get_elements _parse_args /;
+use HTML::FormFu::Util qw/ _filter_components _parse_args /;
 use DateTime;
 use DateTime::Format::Builder;
+use DateTime::Format::Natural;
 use DateTime::Locale;
 use Scalar::Util qw/ blessed /;
 use Carp qw/ croak /;
@@ -20,9 +21,11 @@ __PACKAGE__->mk_attrs(
 
 __PACKAGE__->mk_accessors(
     qw/
-        strftime auto_inflate
+        strftime auto_inflate default_natural
         /
 );
+
+*default = \&value;
 
 # build get_Xs methods
 for my $method (
@@ -39,7 +42,7 @@ for my $method (
         my @x        = @{ $self->$accessor };
         push @x, map { @{ $_->$get_method(@_) } } @{ $self->_elements };
 
-        return _get_elements( \%args, \@x );
+        return _filter_components( \%args, \@x );
     };
 
     my $name = __PACKAGE__ . "::get_${method}s";
@@ -52,7 +55,6 @@ for my $method (
 sub new {
     my $self = shift->next::method(@_);
 
-    $self->is_field(0);
     $self->strftime("%d-%m-%Y");
     $self->day( {
             type   => '_DateSelect',
@@ -72,15 +74,27 @@ sub new {
     return $self;
 }
 
-sub get_fields {
+sub value {
     my $self = shift;
-    my %args = _parse_args(@_);
 
-    my $f = $self->HTML::FormFu::Element::Block::get_fields;
+    if (@_) {
+        $self->{value} = shift;
 
-    unshift @$f, $self;
+        # if we're already built - i.e. process() has ben called, 
+        # call default() on our children
 
-    return _get_elements( \%args, $f );
+        if ( @{ $self->_elements } ) {
+            $self->_date_defaults;
+
+            $self->_elements->[0]->default( $self->day->{default} );
+            $self->_elements->[1]->default( $self->month->{default} );
+            $self->_elements->[2]->default( $self->year->{default} );
+        }
+
+        return $self;
+    }
+
+    return $self->{value};
 }
 
 sub _add_elements {
@@ -106,25 +120,26 @@ sub _add_elements {
 sub _date_defaults {
     my $self = shift;
 
-    my $default = $self->default;
+    my $default;
+    if( defined( $default = $self->default_natural ) ) {
+        my $parser = DateTime::Format::Natural->new;
+        $default = $parser->parse_datetime( $default );
+    }
+    elsif( defined( $default = $self->default ) ) {
+        my $is_blessed = blessed( $default );
 
-    if ( defined $default ) {
-
-        if ( blessed($default) && $default->isa('DateTime') ) {
-            $self->day->{default}   = $default->day;
-            $self->month->{default} = $default->month;
-            $self->year->{default}  = $default->year;
-        }
-        else {
+        if ( !$is_blessed || ( $is_blessed && !$default->isa('DateTime') ) ) {
             my $builder = DateTime::Format::Builder->new;
             $builder->parser( { strptime => $self->strftime } );
 
-            my $dt = $builder->parse_datetime($default);
-
-            $self->day->{default}   = $dt->day;
-            $self->month->{default} = $dt->month;
-            $self->year->{default}  = $dt->year;
+            $default = $builder->parse_datetime($default);
         }
+    }
+
+    if ( defined $default ) {
+        $self->day->{default}   = $default->day;
+        $self->month->{default} = $default->month;
+        $self->year->{default}  = $default->year;
     }
 
     return;
@@ -287,7 +302,7 @@ sub process {
 
     $self->_add_elements;
 
-    return;
+    return $self->next::method(@_);;
 }
 
 sub process_input {
@@ -343,8 +358,6 @@ sub render_data {
 
 sub render_data_non_recursive {
     my $self = shift;
-
-    $self->_add_elements;
 
     my $render = $self->next::method( {
             elements => [ map { $_->render_data } @{ $self->_elements } ],
@@ -403,6 +416,16 @@ Arguments: $date_string
 Accepts either a L<DateTime> object, or a string containing a date, matching 
 the L</strftime> format. Overwrites any default value set in L</day>, 
 L</month> or L</year>.
+
+=head2 default_natural
+
+Arguments: $date_string
+
+    - type: Date
+      default_natural: 'today'
+
+Accepts a date/time string suitable for passing to
+L<DateTime::Format::Natural/parse_datetime>.
 
 =head2 strftime
 

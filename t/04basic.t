@@ -6,7 +6,8 @@ use Test::More tests => 7;
 
 use HTML::FormFu;
 
-my $form = HTML::FormFu->new( { tt_args => { INCLUDE_PATH => 'share/templates/tt/xhtml' } } );
+my $form = HTML::FormFu->new(
+    { tt_args => { INCLUDE_PATH => 'share/templates/tt/xhtml' } } );
 
 $form->action('/foo/bar')->id('form')->auto_id('%n');
 
@@ -66,24 +67,25 @@ is_deeply( $yml_hash, $alt_hash );
 my $alt_form = HTML::FormFu->new($alt_hash);
 $alt_form->tt_args( { INCLUDE_PATH => 'share/templates/tt/xhtml' } );
 
-my $yml_form = HTML::FormFu->new( { tt_args => { INCLUDE_PATH => 'share/templates/tt/xhtml' } } );
+my $yml_form = HTML::FormFu->new(
+    { tt_args => { INCLUDE_PATH => 'share/templates/tt/xhtml' } } );
 $yml_form->load_config_file('t/04basic.yml');
 
 my $xhtml = <<EOF;
 <form action="/foo/bar" id="form" method="post">
 <fieldset>
 <legend>Jimi</legend>
-<span class="text comment label">
+<div class="text comment label">
 <label for="age">Age</label>
 <input name="age" type="text" id="age" />
 <span class="comment">
 x
 </span>
-</span>
-<span class="text label">
+</div>
+<div class="text label">
 <label for="name">Name</label>
 <input name="name" type="text" id="name" />
-</span>
+</div>
 <input name="ok" type="hidden" value="OK" id="ok" />
 </fieldset>
 </form>

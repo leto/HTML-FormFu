@@ -6,14 +6,18 @@ use Test::NoWarnings;
 
 use HTML::FormFu;
 
-my $form = HTML::FormFu->new;
+my $form = HTML::FormFu->new({ tt_args => { INCLUDE_PATH => 'share/templates/tt/xhtml' } });
 
 $form->element('Radio')->name('foo')->value('a')->force_default(1);
 $form->element('Radio')->name('fox')->value('b')->force_default(1);
-$form->element('Radio')->name('bar')->value('c')->checked('checked')->force_default(1);
-$form->element('Radio')->name('bax')->value('d')->checked('checked')->force_default(1);
-$form->element('Radio')->name('moo')->value('e')->default('e')->force_default(1);
-$form->element('Radio')->name('mox')->value('f')->default('f')->force_default(1);
+$form->element('Radio')->name('bar')->value('c')->checked('checked')
+    ->force_default(1);
+$form->element('Radio')->name('bax')->value('d')->checked('checked')
+    ->force_default(1);
+$form->element('Radio')->name('moo')->value('e')->default('e')
+    ->force_default(1);
+$form->element('Radio')->name('mox')->value('f')->default('f')
+    ->force_default(1);
 
 $form->process( {
         foo => '',

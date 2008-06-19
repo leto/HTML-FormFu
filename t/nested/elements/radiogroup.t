@@ -5,7 +5,7 @@ use Test::More tests => 3;
 
 use HTML::FormFu;
 
-my $form = HTML::FormFu->new;
+my $form = HTML::FormFu->new({ tt_args => { INCLUDE_PATH => 'share/templates/tt/xhtml' } });
 
 $form->auto_fieldset( { nested_name => 'rg' } );
 
@@ -31,9 +31,7 @@ is( "$form", <<EOF );
 </form>
 EOF
 
-$form->process( {
-        "rg.foo" => 1,
-    } );
+$form->process( { "rg.foo" => 1, } );
 
 is( $form->param('rg.foo'), 1 );
 

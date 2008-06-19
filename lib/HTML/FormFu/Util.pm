@@ -15,30 +15,42 @@ our @EXPORT_OK = qw/
     require_class
     xml_escape
     literal
+    _filter_components
     _get_elements
     process_attrs
     split_name
+    _merge_hashes
     /;
+
+sub _filter_components {
+    my ( $args, $components ) = @_;
+
+    for my $name ( keys %$args ) {
+        # get_errors() handles this itself
+        next if $name eq 'forced';
+
+        my $value;
+
+        @$components = grep {
+                   $_->can($name)
+                && defined( $value = $_->$name )
+                && $value eq $args->{$name}
+        } @$components;
+    }
+
+    return $components;
+}
 
 sub _get_elements {
     my ( $args, $elements ) = @_;
 
-    if ( exists $args->{name} ) {
-        @$elements
-            = grep { defined $_->name && $_->name eq $args->{name} } @$elements;
-    }
-
-    if ( exists $args->{type} ) {
-        @$elements = grep { $_->type eq $args->{type} } @$elements;
-    }
-
-    if ( exists $args->{nested_name} ) {
-        my $nn;
+    for my $name ( keys %$args ) {
+        my $value;
 
         @$elements = grep {
-                   $_->can('nested_name')
-                && defined( $nn = $_->nested_name )
-                && $nn eq $args->{nested_name}
+                   $_->can($name)
+                && defined( $value = $_->$name )
+                && $value eq $args->{$name}
         } @$elements;
     }
 
@@ -350,6 +362,31 @@ sub split_name {
     }
 
     return ($name);
+}
+
+# sub _merge_hashes copied from Catalyst::Utils::merge_hashes()
+# redistributed under the same terms as Perl
+
+sub _merge_hashes {
+    my ( $lefthash, $righthash ) = @_;
+
+    return $lefthash unless defined $righthash;
+    
+    my %merged = %$lefthash;
+    for my $key ( keys %$righthash ) {
+        my $right_ref = ( ref $righthash->{ $key } || '' ) eq 'HASH';
+        my $left_ref  = ( ( exists $lefthash->{ $key } && ref $lefthash->{ $key } ) || '' ) eq 'HASH';
+        if( $right_ref and $left_ref ) {
+            $merged{ $key } = _merge_hashes(
+                $lefthash->{ $key }, $righthash->{ $key }
+            );
+        }
+        else {
+            $merged{ $key } = $righthash->{ $key };
+        }
+    }
+    
+    return \%merged;
 }
 
 1;

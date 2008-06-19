@@ -32,11 +32,7 @@ sub new {
 sub process {
     my ( $self, $result, $params ) = @_;
 
-    my $name = $self->nested_name;
-
-    # don't run filters on invalid input
-    return if $result->has_errors($name);
-
+    my $name  = $self->nested_name;
     my $value = $self->get_nested_hash_value( $params, $name );
 
     my $filtered;

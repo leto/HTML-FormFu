@@ -3,7 +3,9 @@ package HTML::FormFu::ObjectUtil;
 use strict;
 use Exporter qw/ import /;
 
-use HTML::FormFu::Util qw/ _parse_args require_class _get_elements split_name /;
+use HTML::FormFu::Util
+    qw/ _parse_args require_class _get_elements split_name _filter_components
+        _merge_hashes /;
 use Config::Any;
 use Data::Visitor::Callback;
 use Scalar::Util qw/ refaddr weaken blessed /;
@@ -19,6 +21,7 @@ our @form_and_block = qw/
     inflator
     validator
     transformer
+    plugin
     _single_element
     _single_deflator
     _single_filter
@@ -35,6 +38,7 @@ our @form_and_block = qw/
     get_inflators
     get_validators
     get_transformers
+    get_plugins
     get_all_element
     get_all_elements
     get_field
@@ -53,12 +57,15 @@ our @form_and_element = qw/
     _require_inflator
     _require_validator
     _require_transformer
+    _require_plugin
     get_deflator
     get_filter
     get_constraint
     get_inflator
     get_validator
     get_transformer
+    get_plugin
+    model_config
     /;
 
 our @EXPORT_OK = (
@@ -212,25 +219,15 @@ sub get_errors {
 
     return [] if !$self->form->submitted;
 
-    my @e = map { @{ $_->get_errors(@_) } } @{ $self->_elements };
+    my @x = map { @{ $_->get_errors(@_) } } @{ $self->_elements };
 
-    if ( exists $args{name} ) {
-        @e = grep { $_->name eq $args{name} } @e;
-    }
-
-    if ( exists $args{type} ) {
-        @e = grep { $_->type eq $args{type} } @e;
-    }
-
-    if ( exists $args{stage} ) {
-        @e = grep { $_->stage eq $args{stage} } @e;
-    }
+    _filter_components( \%args, \@x );
 
     if ( !$args{forced} ) {
-        @e = grep { !$_->forced } @e;
+        @x = grep { !$_->forced } @x;
     }
 
-    return \@e;
+    return \@x;
 }
 
 sub get_error {
@@ -259,6 +256,7 @@ sub populate {
         default_values
         filter filters constraint constraints inflator inflators
         deflator deflators query validator validators transformer transformers
+        plugins
     );
 
     my %defer;
@@ -280,9 +278,18 @@ sub populate {
 sub insert_before {
     my ( $self, $object, $position ) = @_;
 
-    for my $i ( 1 .. @{ $self->_elements } ) {
-        if ( refaddr( $self->_elements->[ $i - 1 ] ) eq refaddr($position) ) {
-            splice @{ $self->_elements }, $i - 1, 0, $object;
+    # if $position is already a child of $object, remove it first
+
+    for my $i ( 0 .. $#{ $self->_elements } ) {
+        if ( refaddr( $self->_elements->[ $i ] ) eq refaddr($object) ) {
+            splice @{ $self->_elements }, $i, 1;
+            last;
+        }
+    }
+
+    for my $i ( 0 .. $#{ $self->_elements } ) {
+        if ( refaddr( $self->_elements->[ $i ] ) eq refaddr($position) ) {
+            splice @{ $self->_elements }, $i, 0, $object;
             $object->{parent} = $position->{parent};
             weaken $object->{parent};
             return $object;
@@ -295,9 +302,18 @@ sub insert_before {
 sub insert_after {
     my ( $self, $object, $position ) = @_;
 
-    for my $i ( 1 .. @{ $self->_elements } ) {
-        if ( refaddr( $self->_elements->[ $i - 1 ] ) eq refaddr($position) ) {
-            splice @{ $self->_elements }, $i, 0, $object;
+    # if $position is already a child of $object, remove it first
+
+    for my $i ( 0 .. $#{ $self->_elements } ) {
+        if ( refaddr( $self->_elements->[ $i ] ) eq refaddr($object) ) {
+            splice @{ $self->_elements }, $i, 1;
+            last;
+        }
+    }
+
+    for my $i ( 0 .. $#{ $self->_elements } ) {
+        if ( refaddr( $self->_elements->[ $i ] ) eq refaddr($position) ) {
+            splice @{ $self->_elements }, $i + 1, 0, $object;
             $object->{parent} = $position->{parent};
             weaken $object->{parent};
             return $object;
@@ -310,12 +326,11 @@ sub insert_after {
 sub remove_element {
     my ( $self, $object ) = @_;
 
-    for my $i ( 0 .. @{ $self->_elements } - 1 ) {
+    for my $i ( 0 .. $#{ $self->_elements } ) {
         if ( refaddr( $self->_elements->[$i] ) eq refaddr($object) ) {
             splice @{ $self->_elements }, $i, 1;
             undef $object->{parent};
-            undef $object;
-            return;
+            return $object;
         }
     }
 
@@ -368,7 +383,9 @@ sub _load_file {
         $data_visitor->visit($data);
     }
 
-    $self->populate($_) for ( ref $data eq 'ARRAY' ? @$data : $data );
+    for my $config ( ref $data eq 'ARRAY' ? @$data : $data ) {
+        $self->populate( dclone( $config ) );
+    }
 
     return;
 }
@@ -484,8 +501,10 @@ sub clone {
     $new{_elements}        = [ map { $_->clone } @{ $self->_elements } ];
     $new{attributes}       = dclone $self->attributes;
     $new{tt_args}          = dclone $self->tt_args;
-    $new{element_defaults} = dclone $self->element_defaults;
     $new{languages}        = dclone $self->languages;
+    $new{model_config}     = dclone $self->model_config;
+
+    $new{element_defaults} = $self->element_defaults;
 
     my $obj = bless \%new, ref $self;
 
@@ -607,12 +626,16 @@ sub nested_hash_key_exists {
         }
         else {
             if ( $i == $#names ) {
+                return unless ref $$ref && ref($$ref) eq 'HASH';
+                
                 return exists $$ref->{$part} ? 1 : 0;
             }
 
             $ref = \( $$ref->{$part} );
         }
     }
+    
+    return;
 }
 
 sub stash {
@@ -836,6 +859,20 @@ sub transformer {
     return @return == 1 ? $return[0] : @return;
 }
 
+sub plugin {
+    my ( $self, $arg ) = @_;
+    my @return;
+
+    if ( ref $arg eq 'ARRAY' ) {
+        push @return, map { $self->_single_plugin($_) } @$arg;
+    }
+    else {
+        push @return, $self->_single_plugin($arg);
+    }
+
+    return @return == 1 ? $return[0] : @return;
+}
+
 sub _single_element {
     my ( $self, $arg ) = @_;
 
@@ -843,7 +880,7 @@ sub _single_element {
         $arg = { type => $arg };
     }
     elsif ( ref $arg eq 'HASH' ) {
-        $arg = dclone($arg);
+        $arg = { %$arg }; # shallow clone
     }
     else {
         croak 'invalid args';
@@ -877,7 +914,7 @@ sub _single_deflator {
         $arg = { type => $arg };
     }
     elsif ( ref $arg eq 'HASH' ) {
-        $arg = dclone($arg);
+        $arg = { %$arg }; # shallow clone
     }
     else {
         croak 'invalid args';
@@ -914,7 +951,7 @@ sub _single_filter {
         $arg = { type => $arg };
     }
     elsif ( ref $arg eq 'HASH' ) {
-        $arg = dclone($arg);
+        $arg = { %$arg }; # shallow clone
     }
     else {
         croak 'invalid args';
@@ -951,7 +988,7 @@ sub _single_constraint {
         $arg = { type => $arg };
     }
     elsif ( ref $arg eq 'HASH' ) {
-        $arg = dclone($arg);
+        $arg = { %$arg }; # shallow clone
     }
     else {
         croak 'invalid args';
@@ -988,7 +1025,7 @@ sub _single_inflator {
         $arg = { type => $arg };
     }
     elsif ( ref $arg eq 'HASH' ) {
-        $arg = dclone($arg);
+        $arg = { %$arg }; # shallow clone
     }
     else {
         croak 'invalid args';
@@ -1025,7 +1062,7 @@ sub _single_validator {
         $arg = { type => $arg };
     }
     elsif ( ref $arg eq 'HASH' ) {
-        $arg = dclone($arg);
+        $arg = { %$arg }; # shallow clone
     }
     else {
         croak 'invalid args';
@@ -1062,7 +1099,7 @@ sub _single_transformer {
         $arg = { type => $arg };
     }
     elsif ( ref $arg eq 'HASH' ) {
-        $arg = dclone($arg);
+        $arg = { %$arg }; # shallow clone
     }
     else {
         croak 'invalid args';
@@ -1098,19 +1135,7 @@ sub get_deflators {
 
     my @x = map { @{ $_->get_deflators(@_) } } @{ $self->_elements };
 
-    if ( exists $args{name} ) {
-        @x = grep { $_->name eq $args{name} } @x;
-    }
-
-    if ( exists $args{type} ) {
-        @x = grep { $_->type eq $args{type} } @x;
-    }
-
-    if ( exists $args{nested_name} ) {
-        @x = grep { $_->nested_name eq $args{nested_name} } @x;
-    }
-
-    return \@x;
+    return _filter_components( \%args, \@x );
 }
 
 sub get_filters {
@@ -1119,19 +1144,7 @@ sub get_filters {
 
     my @x = map { @{ $_->get_filters(@_) } } @{ $self->_elements };
 
-    if ( exists $args{name} ) {
-        @x = grep { $_->name eq $args{name} } @x;
-    }
-
-    if ( exists $args{type} ) {
-        @x = grep { $_->type eq $args{type} } @x;
-    }
-
-    if ( exists $args{nested_name} ) {
-        @x = grep { $_->nested_name eq $args{nested_name} } @x;
-    }
-
-    return \@x;
+    return _filter_components( \%args, \@x );
 }
 
 sub get_constraints {
@@ -1140,19 +1153,7 @@ sub get_constraints {
 
     my @x = map { @{ $_->get_constraints(@_) } } @{ $self->_elements };
 
-    if ( exists $args{name} ) {
-        @x = grep { $_->name eq $args{name} } @x;
-    }
-
-    if ( exists $args{type} ) {
-        @x = grep { $_->type eq $args{type} } @x;
-    }
-
-    if ( exists $args{nested_name} ) {
-        @x = grep { $_->nested_name eq $args{nested_name} } @x;
-    }
-
-    return \@x;
+    return _filter_components( \%args, \@x );
 }
 
 sub get_inflators {
@@ -1161,19 +1162,7 @@ sub get_inflators {
 
     my @x = map { @{ $_->get_inflators(@_) } } @{ $self->_elements };
 
-    if ( exists $args{name} ) {
-        @x = grep { $_->name eq $args{name} } @x;
-    }
-
-    if ( exists $args{type} ) {
-        @x = grep { $_->type eq $args{type} } @x;
-    }
-
-    if ( exists $args{nested_name} ) {
-        @x = grep { $_->nested_name eq $args{nested_name} } @x;
-    }
-
-    return \@x;
+    return _filter_components( \%args, \@x );
 }
 
 sub get_validators {
@@ -1182,19 +1171,7 @@ sub get_validators {
 
     my @x = map { @{ $_->get_validators(@_) } } @{ $self->_elements };
 
-    if ( exists $args{name} ) {
-        @x = grep { $_->name eq $args{name} } @x;
-    }
-
-    if ( exists $args{type} ) {
-        @x = grep { $_->type eq $args{type} } @x;
-    }
-
-    if ( exists $args{nested_name} ) {
-        @x = grep { $_->nested_name eq $args{nested_name} } @x;
-    }
-
-    return \@x;
+    return _filter_components( \%args, \@x );
 }
 
 sub get_transformers {
@@ -1203,19 +1180,14 @@ sub get_transformers {
 
     my @x = map { @{ $_->get_transformers(@_) } } @{ $self->_elements };
 
-    if ( exists $args{name} ) {
-        @x = grep { $_->name eq $args{name} } @x;
-    }
+    return _filter_components( \%args, \@x );
+}
 
-    if ( exists $args{type} ) {
-        @x = grep { $_->type eq $args{type} } @x;
-    }
+sub get_plugins {
+    my $self = shift;
+    my %args = _parse_args(@_);
 
-    if ( exists $args{nested_name} ) {
-        @x = grep { $_->nested_name eq $args{nested_name} } @x;
-    }
-
-    return \@x;
+    return _filter_components( \%args, $self->_plugins );
 }
 
 sub _require_deflator {
@@ -1353,6 +1325,34 @@ sub _require_transformer {
     return $object;
 }
 
+sub _require_plugin {
+    my ( $self, $type, $arg ) = @_;
+
+    croak 'required arguments: $self, $type, \%options' if @_ != 3;
+
+    eval { my %x = %$arg };
+    croak "options argument must be hash-ref" if $@;
+
+    my $abs   = $type =~ s/^\+//;
+    my $class = $type;
+
+    if ( !$abs ) {
+        $class = "HTML::FormFu::Plugin::$class";
+    }
+
+    $type =~ s/^\+//;
+
+    require_class($class);
+
+    my $plugin = $class->new( {
+            type   => $type,
+            parent => $self,
+            %$arg
+        } );
+
+    return $plugin;
+}
+
 sub get_deflator {
     my $self = shift;
 
@@ -1399,6 +1399,24 @@ sub get_transformer {
     my $x = $self->get_transformers(@_);
 
     return @$x ? $x->[0] : ();
+}
+
+sub get_plugin {
+    my $self = shift;
+
+    my $x = $self->get_plugins(@_);
+
+    return @$x ? $x->[0] : ();
+}
+
+sub model_config {
+    my ( $self, $config ) = @_;
+
+    $self->{model_config} ||= {};
+
+    $self->{model_config} = _merge_hashes( $self->{model_config}, $config );
+
+    return $self->{model_config};
 }
 
 1;

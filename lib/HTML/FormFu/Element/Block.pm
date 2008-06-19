@@ -24,10 +24,11 @@ __PACKAGE__->mk_inherited_accessors(
 *elements     = \&element;
 *constraints  = \&constraint;
 *deflators    = \&deflator;
-*filters      = \&filters;
+*filters      = \&filter;
 *inflators    = \&inflator;
 *validators   = \&validator;
 *transformers = \&transformer;
+*plugins      = \&plugin;
 
 sub new {
     my $self = shift->next::method(@_);
@@ -40,18 +41,42 @@ sub new {
     return $self;
 }
 
-sub defaults_from_model {
-    my $self = shift;
+sub _single_plugin {
+    my ( $self, $arg ) = @_;
 
-    return $self->form->model->defaults_from_model(@_);
+    if ( !ref $arg ) {
+        $arg = { type => $arg };
+    }
+    elsif ( ref $arg eq 'HASH' ) {
+        $arg = { %$arg }; # shallow clone
+    }
+    else {
+        croak 'invalid args';
+    }
+
+    my @names = map { ref $_ ? @$_ : $_ }
+        grep {defined} ( delete $arg->{name}, delete $arg->{names} );
+
+    @names = uniq(
+        grep    {defined}
+            map { $_->nested_name } @{ $self->get_fields } ) if !@names;
+
+    croak "no field names to add plugin to" if !@names;
+
+    my $type = delete $arg->{type};
+
+    my @return;
+
+    for my $x (@names) {
+        for my $field ( @{ $self->get_fields( { nested_name => $x } ) } ) {
+            my $new = $field->_require_plugin( $type, $arg );
+            push @{ $field->_plugins }, $new;
+            push @return, $new;
+        }
+    }
+
+    return @return;
 }
-
-sub save_to_model {
-    my $self = shift;
-
-    return $self->form->model->save_to_model(@_);
-}
-
 sub process {
     my ($self) = @_;
 
@@ -60,12 +85,21 @@ sub process {
     return;
 }
 
+sub post_process {
+    my ($self) = @_;
+
+    map { $_->post_process } @{ $self->_elements };
+
+    return;
+}
+
 sub render_data {
     my $self = shift;
 
     my $render = $self->render_data_non_recursive( {
-            elements => [ map { $_->render_data } @{ $self->_elements } ],
             @_ ? %{ $_[0] } : () } );
+
+    $render->{elements} = [ map { $_->render_data } @{ $self->_elements } ];
 
     return $render;
 }
@@ -74,8 +108,8 @@ sub render_data_non_recursive {
     my $self = shift;
 
     my $render = $self->next::method( {
-            tag     => $self->tag,
-            content => xml_escape( $self->content ),
+        tag     => $self->tag,
+        content => xml_escape( $self->content ),
             @_ ? %{ $_[0] } : () } );
 
     return $render;

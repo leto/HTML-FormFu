@@ -3,11 +3,9 @@ package HTML::FormFu::QueryType::CGI;
 use strict;
 use base 'HTML::FormFu::Upload';
 
-use HTML::FormFu::Attribute qw( mk_accessors );
 use HTTP::Headers;
 use Scalar::Util qw/ blessed /;
 
-__PACKAGE__->mk_accessors(qw/ filename headers /);
 
 sub parse_uploads {
     my ( $class, $form, $name ) = @_;
@@ -24,12 +22,18 @@ sub parse_uploads {
                     _param   => $param,
                     filename => sprintf( "%s", $filename ),
                     parent   => $form,
+                    # TODO: for now, parent points to the form
+                    # pointing to a field will require handling multiple
+                    # fields of the same name
+                    # if fixed, other QueryTypes and MultiForm will need updating
                 } );
 
             my $headers
                 = HTTP::Headers->new( %{ $query->uploadInfo($filename) } );
 
             $param->headers($headers);
+            $param->size( $headers->content_length );
+            $param->type( $headers->content_type );
         }
 
         push @new, $param;
@@ -51,23 +55,13 @@ sub slurp {
 
     my $fh = $self->fh;
 
+    return if !defined $fh;
+
     binmode $fh;
 
     local $/;
 
     return <$fh>;
-}
-
-sub size {
-    my ($self) = @_;
-
-    return $self->headers->content_length;
-}
-
-sub type {
-    my ($self) = @_;
-
-    return $self->headers->content_type;
 }
 
 1;

@@ -27,6 +27,13 @@ sub parse_uploads {
                 _param          => $upload,
                 catalyst_upload => $upload,
                 parent          => $form,
+                # set the following now, rather than on demand from catalyst_upload
+                # so they'll still work if we're freeze/thawed and reblessed 
+                # as a HTML::FormFu::QueryType::CGI by MultiForm
+                headers         => $upload->headers,
+                filename        => $upload->filename,
+                size            => $upload->size,
+                type            => $upload->type
             } );
 
         push @new, $param;
@@ -35,18 +42,6 @@ sub parse_uploads {
     return if !@new;
 
     return @new == 1 ? $new[0] : \@new;
-}
-
-sub headers {
-    my ($self) = @_;
-
-    return $self->_param->headers;
-}
-
-sub filename {
-    my ($self) = @_;
-
-    return $self->_param->filename;
 }
 
 sub fh {
@@ -79,22 +74,10 @@ sub link_to {
     return $self->_param->link_to($target);
 }
 
-sub size {
-    my ($self) = @_;
-
-    return $self->_param->size;
-}
-
 sub tempname {
     my ($self) = @_;
 
     return $self->_param->tempname;
-}
-
-sub type {
-    my ($self) = @_;
-
-    return $self->_param->type;
 }
 
 sub catalyst_upload {

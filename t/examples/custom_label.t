@@ -15,9 +15,10 @@ else {
 
 use HTML::FormFu;
 
-my $form = HTML::FormFu->new({ tt_args => { INCLUDE_PATH => 'share/templates/tt/xhtml' } });
+my $form = HTML::FormFu->new(
+    { tt_args => { INCLUDE_PATH => 'share/templates/tt/xhtml' } } );
 
-$form->auto_fieldset({ legend => 'Foo' });
+$form->auto_fieldset( { legend => 'Foo' } );
 
 $form->element('Text')->name('foo')->label('Foo');
 $form->element('Text')->name('bar')->label('Bar');
@@ -39,9 +40,9 @@ my $xhtml = <<EOF;
 <label>Foo</label>: <input name="foo" type="text" />
 <label>Bar</label>: <input name="bar" type="text" />
 <input name="baz" type="hidden" />
-<span class="submit">
+<div class="submit">
 <input name="submit" type="submit" />
-</span>
+</div>
 </fieldset>
 </form>
 </body>
