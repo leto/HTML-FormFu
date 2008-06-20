@@ -29,6 +29,7 @@ requires:
   Crypt::DES: 0
   Data::Visitor::Callback: 0
   Date::Calc: 0
+  DateTime: 0.38
   DateTime::Format::Builder: 0.7901
   DateTime::Format::Natural: 0
   DateTime::Format::Strptime: 0
@@ -47,4 +48,4 @@ requires:
   Template: 0
   YAML::Syck: 0
   perl: 5.8.1
-version: 0.03000
+version: 0.03001
