@@ -12,9 +12,9 @@ requires 'Crypt::DES';
 requires 'Data::Visitor::Callback';
 requires 'Date::Calc';
 requires 'DateTime' => '0.38'; # required for string overloading
+requires 'DateTime::Format::Strptime';  
 requires 'DateTime::Format::Builder' => '0.7901'; # fixes memory leaks
 requires 'DateTime::Format::Natural';
-requires 'DateTime::Format::Strptime';
 requires 'DateTime::Locale';
 requires 'Email::Valid';
 requires 'File::ShareDir';
@@ -29,7 +29,7 @@ requires 'Regexp::Common';
 requires 'Task::Weaken'; # to ensure Scalar::Util was built with weaken()
 requires 'Template'; # form->start and ->end still require TT
                      # so does t/elements/render_method
-requires 'YAML::Syck';
+requires 'YAML::Syck' => '1.05';
 
 test_requires 'Test::NoWarnings';
 

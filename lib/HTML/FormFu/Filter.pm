@@ -32,7 +32,7 @@ sub new {
 sub process {
     my ( $self, $result, $params ) = @_;
 
-    my $name  = $self->nested_name;
+    my $name = $self->nested_name;
     my $value = $self->get_nested_hash_value( $params, $name );
 
     my $filtered;
@@ -129,7 +129,11 @@ Shorthand for C<< $filter->parent->name >>
 
 =item L<HTML::FormFu::Filter::Callback>
 
-=item L<HTML::FormFu::Filter::Default>
+=item L<HTML::FormFu::Filter::CompoundJoin>
+
+=item L<HTML::FormFu::Filter::CompoundSprintf>
+
+=item L<HTML::FormFu::Filter::CopyValue>
 
 =item L<HTML::FormFu::Filter::Encode>
 

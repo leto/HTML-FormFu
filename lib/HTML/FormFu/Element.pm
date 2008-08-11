@@ -45,8 +45,8 @@ sub new {
 
     my $self = bless {}, $class;
 
-    $self->attributes(  {} );
-    $self->stash(       {} );
+    $self->attributes( {} );
+    $self->stash(      {} );
 
     if ( exists $attrs{parent} ) {
         $self->parent( delete $attrs{parent} );
@@ -137,7 +137,7 @@ sub clone {
     $new{tt_args} = dclone $self->{tt_args}
         if $self->{tt_args};
 
-    $new{attributes}  = dclone $self->attributes;
+    $new{attributes}   = dclone $self->attributes;
     $new{model_config} = dclone $self->model_config;
 
     return bless \%new, ref $self;
@@ -441,9 +441,9 @@ See L<HTML::FormFu/render_method> for details.
 
 =item L<HTML::FormFu::Element::Password>
 
-=item L<HTML::FormFu::Element::Radiogroup>
-
 =item L<HTML::FormFu::Element::Radio>
+
+=item L<HTML::FormFu::Element::Radiogroup>
 
 =item L<HTML::FormFu::Element::Reset>
 

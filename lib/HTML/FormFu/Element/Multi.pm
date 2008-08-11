@@ -5,7 +5,8 @@ use base 'HTML::FormFu::Element::Block', 'HTML::FormFu::Element::_Field';
 use Class::C3;
 
 use HTML::FormFu::Element::_Field qw/ :FIELD /;
-use HTML::FormFu::Util qw/ append_xml_attribute xml_escape process_attrs _parse_args _get_elements _filter_components /;
+use HTML::FormFu::Util
+    qw/ append_xml_attribute xml_escape process_attrs _parse_args _get_elements _filter_components /;
 use Storable qw/ dclone /;
 
 __PACKAGE__->mk_accessors(
@@ -37,7 +38,6 @@ sub new {
 
     $self->comment_attributes(   {} );
     $self->container_attributes( {} );
-    $self->element_defaults(     {} );
     $self->filename('multi');
     $self->label_attributes( {} );
     $self->label_filename('label');

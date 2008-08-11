@@ -18,7 +18,7 @@ use Exporter qw/ import /;
 
 # used by multi.pm
 our @EXPORT_OK = qw/
-    nested_name add_error 
+    nested_name add_error
     deflator filter constraint inflator validator transformer plugin
     deflators filters constraints inflators validators transformers plugins /;
 
@@ -46,7 +46,7 @@ __PACKAGE__->mk_inherited_accessors(
     qw/ auto_id auto_label auto_error_class auto_error_message
         auto_constraint_class auto_inflator_class auto_validator_class
         auto_transformer_class render_processed_value force_errors
-        repeatable_count /
+        repeatable_count default_empty_value /
 );
 
 *constraints  = \&constraint;
@@ -254,7 +254,7 @@ sub plugin {
     my @return;
 
     if ( ref $arg eq 'ARRAY' ) {
-        push @return, map { _single_plugin( $self, $_) } @$arg;
+        push @return, map { _single_plugin( $self, $_ ) } @$arg;
     }
     else {
         push @return, _single_plugin( $self, $arg );
@@ -414,8 +414,8 @@ sub prepare_id {
         && length $self->auto_id )
     {
         my %string = (
-            f => defined $self->form->id          ? $self->form->id          : '',
-            n => defined $render->{ nested_name } ? $render->{ nested_name } : '',
+            f => defined $self->form->id        ? $self->form->id        : '',
+            n => defined $render->{nested_name} ? $render->{nested_name} : '',
         );
 
         my $id = $self->auto_id;
@@ -559,9 +559,8 @@ sub _render_value {
             && defined $name
             && $self->nested_hash_key_exists( $form->input, $name ) )
         ? $self->render_processed_value
-            ? ( $self->get_nested_hash_value(
-                    $form->_processed_params, $name
-                    ) )
+            ? ( $self->get_nested_hash_value( $form->_processed_params, $name )
+            )
             : $self->get_nested_hash_value( $form->input, $name )
         : undef;
 
@@ -576,7 +575,9 @@ sub _render_value {
 
     my $value = $self->process_value($input);
 
-    if ( !$self->form->submitted || ( $self->render_processed_value && defined $value ) ) {
+    if ( !$self->form->submitted
+        || ( $self->render_processed_value && defined $value ) )
+    {
         for my $deflator ( @{ $self->_deflators } ) {
             $value = $deflator->process($value);
         }
@@ -860,7 +861,7 @@ sub _single_deflator {
         $arg = { type => $arg };
     }
     elsif ( ref $arg eq 'HASH' ) {
-        $arg = { %$arg }; # shallow clone
+        $arg = {%$arg};    # shallow clone
     }
     else {
         croak 'invalid args';
@@ -884,7 +885,7 @@ sub _single_filter {
         $arg = { type => $arg };
     }
     elsif ( ref $arg eq 'HASH' ) {
-        $arg = { %$arg }; # shallow clone
+        $arg = {%$arg};    # shallow clone
     }
     else {
         croak 'invalid args';
@@ -908,7 +909,7 @@ sub _single_constraint {
         $arg = { type => $arg };
     }
     elsif ( ref $arg eq 'HASH' ) {
-        $arg = { %$arg }; # shallow clone
+        $arg = {%$arg};    # shallow clone
     }
     else {
         croak 'invalid args';
@@ -932,7 +933,7 @@ sub _single_inflator {
         $arg = { type => $arg };
     }
     elsif ( ref $arg eq 'HASH' ) {
-        $arg = { %$arg }; # shallow clone
+        $arg = {%$arg};    # shallow clone
     }
     else {
         croak 'invalid args';
@@ -956,7 +957,7 @@ sub _single_validator {
         $arg = { type => $arg };
     }
     elsif ( ref $arg eq 'HASH' ) {
-        $arg = { %$arg }; # shallow clone
+        $arg = {%$arg};    # shallow clone
     }
     else {
         croak 'invalid args';
@@ -980,7 +981,7 @@ sub _single_transformer {
         $arg = { type => $arg };
     }
     elsif ( ref $arg eq 'HASH' ) {
-        $arg = { %$arg }; # shallow clone
+        $arg = {%$arg};    # shallow clone
     }
     else {
         croak 'invalid args';
@@ -1004,7 +1005,7 @@ sub _single_plugin {
         $arg = { type => $arg };
     }
     elsif ( ref $arg eq 'HASH' ) {
-        $arg = { %$arg }; # shallow clone
+        $arg = {%$arg};    # shallow clone
     }
     else {
         croak 'invalid args';
@@ -1159,6 +1160,14 @@ the field will have it's value set to it's default value.
 If the default value is being changed after FormFu->process is being called
 the later default value is respected for rendering, *but* nevertheless the
 input value doesn't respect that, it will remain the first value.
+
+Default Value: C<false>
+
+=head2 default_empty_value
+
+Designed for use by Checkbox fields. Normally if a checkbox is not checked,
+no value is submitted for that field. If C<default_empty_value> is true,
+the Checkbox field is given an empty value during L</process>.
 
 Default Value: C<false>
 

@@ -10,7 +10,7 @@ use HTML::FormFu::Util qw/ _get_elements xml_escape process_attrs /;
 use Storable qw( dclone );
 use Carp qw/croak/;
 
-__PACKAGE__->mk_accessors(qw/ tag _elements element_defaults nested_name /);
+__PACKAGE__->mk_accessors(qw/ tag _elements nested_name /);
 
 __PACKAGE__->mk_output_accessors(qw/ content /);
 
@@ -34,7 +34,7 @@ sub new {
     my $self = shift->next::method(@_);
 
     $self->_elements( [] );
-    $self->element_defaults( {} );
+    $self->default_args( {} );
     $self->filename('block');
     $self->tag('div');
 
@@ -48,7 +48,7 @@ sub _single_plugin {
         $arg = { type => $arg };
     }
     elsif ( ref $arg eq 'HASH' ) {
-        $arg = { %$arg }; # shallow clone
+        $arg = {%$arg};    # shallow clone
     }
     else {
         croak 'invalid args';
@@ -77,6 +77,7 @@ sub _single_plugin {
 
     return @return;
 }
+
 sub process {
     my ($self) = @_;
 
@@ -96,8 +97,7 @@ sub post_process {
 sub render_data {
     my $self = shift;
 
-    my $render = $self->render_data_non_recursive( {
-            @_ ? %{ $_[0] } : () } );
+    my $render = $self->render_data_non_recursive( { @_ ? %{ $_[0] } : () } );
 
     $render->{elements} = [ map { $_->render_data } @{ $self->_elements } ];
 
@@ -108,8 +108,8 @@ sub render_data_non_recursive {
     my $self = shift;
 
     my $render = $self->next::method( {
-        tag     => $self->tag,
-        content => xml_escape( $self->content ),
+            tag     => $self->tag,
+            content => xml_escape( $self->content ),
             @_ ? %{ $_[0] } : () } );
 
     return $render;
@@ -195,7 +195,7 @@ sub clone {
 
     map { $_->parent($clone) } @{ $clone->_elements };
 
-    $clone->element_defaults( dclone $self->element_defaults );
+    $clone->default_args( dclone $self->default_args );
 
     return $clone;
 }

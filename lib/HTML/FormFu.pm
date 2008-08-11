@@ -42,7 +42,7 @@ __PACKAGE__->mk_attr_accessors(qw/ id action enctype method /);
 
 __PACKAGE__->mk_accessors(
     qw/ indicator filename javascript javascript_src
-        element_defaults query_type languages force_error_message
+        query_type languages force_error_message
         localize_class submitted query input _auto_fieldset
         _elements _processed_params _valid_names  _models
         _output_processors tt_module params_ignore_underscore
@@ -73,7 +73,7 @@ __PACKAGE__->mk_inherited_merging_accessors(qw/ tt_args config_callback /);
 *plugins           = \&plugin;
 *add_plugins       = \&add_plugin;
 
-our $VERSION = '0.03001';
+our $VERSION = '0.03002';
 $VERSION = eval $VERSION;
 
 Class::C3::initialize();
@@ -99,7 +99,7 @@ sub new {
         action             => '',
         method             => 'post',
         filename           => 'form',
-        element_defaults   => {},
+        default_args       => {},
         render_method      => 'string',
         tt_args            => {},
         tt_module          => 'Template',
@@ -158,23 +158,24 @@ sub model {
     $model_name = $self->default_model
         if !defined $model_name;
 
-    for my $model (@{ $self->_models }) {
+    for my $model ( @{ $self->_models } ) {
         return $model
             if $model->type =~ /\Q$model_name\E$/;
     }
 
     # class not found, try require-ing it
 
-    my $class = $model_name =~ s/^\+// 
+    my $class
+        = $model_name =~ s/^\+//
         ? $model_name
         : "HTML::FormFu::Model::$model_name";
 
     require_class($class);
 
-    my $model = $class->new({
-       type   => $model_name,
-       parent => $self, 
-    });
+    my $model = $class->new( {
+            type   => $model_name,
+            parent => $self,
+        } );
 
     push @{ $self->_models }, $model;
 
@@ -184,7 +185,8 @@ sub model {
 sub model_class {
     my $self = shift;
 
-    warn "model_class() method deprecated and is provided for compatibilty only, "
+    warn
+        "model_class() method deprecated and is provided for compatibilty only, "
         . "and will be removed: use default_model instead\n";
 
     return $self->default_model(@_);
@@ -193,7 +195,8 @@ sub model_class {
 sub defaults_from_model {
     my $self = shift;
 
-    warn "defaults_from_model() method deprecated and is provided for compatibility only, "
+    warn
+        "defaults_from_model() method deprecated and is provided for compatibility only, "
         . "and will be removed: use \$form->model->default_values() instead\n";
 
     return $self->model->default_values(@_);
@@ -202,7 +205,8 @@ sub defaults_from_model {
 sub save_to_model {
     my $self = shift;
 
-    warn "save_to_model() method deprecated and is provided for compatibility only, "
+    warn
+        "save_to_model() method deprecated and is provided for compatibility only, "
         . "and will be removed: use \$form->model->update() instead\n";
 
     return $self->model->update(@_);
@@ -233,7 +237,7 @@ sub process {
 
     my $plugins = $self->get_plugins;
 
-    for my $plugin ( @$plugins ) {
+    for my $plugin (@$plugins) {
         $plugin->process;
     }
 
@@ -252,7 +256,7 @@ sub process {
 
     $self->submitted($submitted);
 
-    if ( $submitted ) {
+    if ($submitted) {
         my %param;
         my @params = $query->param;
 
@@ -290,7 +294,7 @@ sub process {
         $elem->post_process;
     }
 
-    for my $plugin ( @$plugins ) {
+    for my $plugin (@$plugins) {
         $plugin->post_process;
     }
 
@@ -358,7 +362,10 @@ sub _build_params {
 
         next if !defined $name;
         next if exists $params{$name};
-        next if !$self->nested_hash_key_exists( $self->input, $name );
+
+        next
+            if !$self->nested_hash_key_exists( $self->input, $name )
+                && !$field->default_empty_value;
 
         my $input = $self->get_nested_hash_value( $self->input, $name );
 
@@ -367,6 +374,9 @@ sub _build_params {
             # can't clone upload filehandles
             # so create new arrayref of values
             $input = [@$input];
+        }
+        elsif ( !defined $input && $field->default_empty_value ) {
+            $input = '';
         }
 
         $self->set_nested_hash_value( \%params, $name, $input, $name );
@@ -835,7 +845,7 @@ sub _single_plugin {
         $arg = { type => $arg };
     }
     elsif ( ref $arg eq 'HASH' ) {
-        $arg = { %$arg }; # shallow clone
+        $arg = {%$arg};    # shallow clone
     }
     else {
         croak 'invalid args';
@@ -848,6 +858,7 @@ sub _single_plugin {
         grep {defined} ( delete $arg->{name}, delete $arg->{names} );
 
     if (@names) {
+
         # add plugins to appropriate fields
         for my $x (@names) {
             for my $field ( @{ $self->get_fields( { nested_name => $x } ) } ) {
@@ -858,6 +869,7 @@ sub _single_plugin {
         }
     }
     else {
+
         # add plugin directly to form
         my $new = $self->_require_plugin( $type, $arg );
 
@@ -873,13 +885,13 @@ sub render {
 
     my $plugins = $self->get_plugins;
 
-    for my $plugin ( @$plugins ) {
+    for my $plugin (@$plugins) {
         $plugin->render;
     }
 
     my $output = $self->next::method(@_);
 
-    for my $plugin ( @$plugins ) {
+    for my $plugin (@$plugins) {
         $plugin->post_render( \$output );
     }
 
@@ -1060,6 +1072,14 @@ sub _require_output_processor {
             type   => $type,
             parent => $self,
         } );
+
+    # handle default_args
+    my $parent = $self->parent;
+
+    if ( $parent && exists $parent->default_args->{output_processor}{$type} ) {
+        %$opt
+            = ( %{ $parent->default_args->{output_processer}{$type} }, %$opt );
+    }
 
     $object->populate($opt);
 
@@ -1284,7 +1304,19 @@ Arguments: \%options
 
 If defined, the arguments are used to create a L<Data::Visitor::Callback> 
 object during L</load_config_file> which may be used to pre-process the 
-config before it is sent to L</populate>
+config before it is sent to L</populate>.
+
+For example, the code below adds a callback to a form that will dynamically
+alter any config value ending in ".yml" to end in ".yaml" when you call
+L</load_config_file>:
+
+    $form->config_callback({
+      plain_value => sub {
+        my( $visitor, $data ) = @_;
+        s/\.yml/.yaml/;
+      }
+    });
+
 
 Default Value: not defined
 
@@ -1473,23 +1505,52 @@ file.
 If true, forces the L</form_error_message> to be displayed even if there are 
 no field errors.
 
-=head2 element_defaults
+=head2 default_args
 
 Arguments: \%defaults
 
-Set defaults which will be added to every element of that type which is added 
-to the form.
+Set defaults which will be added to every element, constraint, etc. of the
+listed type which is added to the form.
 
-For example, to make every C<text> element automatically have a 
-L<size|HTML::FormFu::Element/size> of C<10>, and make every C<textarea> 
-element automatically get a class-name of C<bigbox>:
+For example, to make every C<Text> element automatically have a 
+L<size|HTML::FormFu::Element/size> of C<10>, and make every C<Strftime> 
+deflator automatically get it's strftime set to C<%d/%m/%Y>:
 
-    element_defaults:
-      Text:
-        size: 10
-      Textarea:
-        add_attributes:
-          class: bigbox
+    element_args:
+        elements:
+            Text:
+                size: 10
+        deflators:
+            Strftime:
+                strftime: '%d/%m/%Y'
+
+To take it even further, you can even make all DateTime elements automatically
+get an appropriate Strftime deflator and a DateTime inflator:
+
+    element_args:
+        elements:
+            DateTime:
+                deflators:
+                    type: Strftime
+                    strftime: '%d-%m-%Y'
+                inflators:
+                    type: DateTime
+                    parser: 
+                        strptime: '%d-%m-%Y'
+
+Note: Unlike the proper methods which have aliases, for example L</elements>
+which is an alias for L</element> - the keys given to C<default_args> must
+be of the plural form, e.g.:
+
+    element_args:
+        elements:          {}
+        deflators:         {}
+        filters:           {}
+        constraints:       {}
+        inflators:         {}
+        validators:        {}
+        transformers:      {}
+        output_processors: {}
 
 =head2 javascript
 
@@ -2250,12 +2311,12 @@ Arguments: [$query_object]
 
 Arguments: [\%params]
 
-Process the provided query object or input values. This must be called 
+Process the provided query object or input values. C<process> must be called 
 before calling any of the methods listed under 
 L</"SUBMITTED FORM VALUES AND ERRORS"> and L</"MODIFYING A SUBMITTED FORM">.
 
-It's not necessary to call L</process> before printing the form or calling 
-L</render>.
+C<process> must also be called at least once before printing the form or
+calling L</render> or L</render_data>.
 
 =head1 SUBMITTED FORM VALUES AND ERRORS
 
@@ -2425,6 +2486,9 @@ Deletes all errors from a submitted form.
 
 Return Value: $string
 
+You must call L</process> once after building the form, and before calling
+L</render>.
+
 =head2 start
 
 Return Value: $string
@@ -2558,6 +2622,9 @@ defined value.
 
 Usually called implicitly by L</render>. Returns the data structure that
 would normally be passed onto the C<string> or C<tt> render-methods.
+
+As with L</render>, you must call L</process> once after building the form,
+and before calling L</render_data>.
 
 
 =head2 render_data_non_recursive
@@ -2843,6 +2910,13 @@ Because of scoping issues, code references (such as in Callback constraints)
 are copied instead of cloned.
 
 =head1 DEPRECATED METHODS
+
+=head2 element_defaults
+
+Is deprecated and provided only for backwards compatability. Will be removed
+at some point in the future.
+
+See L</default_args> instead.
 
 =head2 model_class
 

@@ -1,39 +1,22 @@
 package HTML::FormFu::Filter::CompoundJoin;
 
 use strict;
-use base 'HTML::FormFu::Filter';
+use base 'HTML::FormFu::Filter::_Compound';
 
-__PACKAGE__->mk_accessors(qw/ join field_order /);
+__PACKAGE__->mk_accessors(qw/ join /);
 
 sub filter {
     my ( $self, $value ) = @_;
 
     return unless defined $value && $value ne "";
-    
+
     my $join = $self->join;
     $join = ' ' if !defined $join;
-    
-    my ( $multi, @fields ) = @{ $self->parent->get_fields };
-    
-    if ( my $order = $self->field_order ) {
-        my @new_order;
-        
-FIELD:  for my $i ( @$order ) {
-            for my $field ( @fields ) {
-                if ( $field->name eq $i ) {
-                    push @new_order, $field;
-                    next FIELD;
-                }
-            }
-        }
-        
-        @fields = @new_order;
-    }
-    
-    my @names = map { $_->name } @fields;
-    
-    $value = join $join, map { defined $_ ? $_ : '' } @{$value}{@names};
-    
+
+    my @values = $self->_get_values($value);
+
+    $value = join $join, @values;
+
     return $value;
 }
 
@@ -82,11 +65,7 @@ space.
 
 =head2 field_order
 
-Arguments: \@order
-
-If the submitted parts should be joined in an order different that that of the 
-order of the fields, you must provide an arrayref containing the names, in the 
-order they should be joined.
+Inherited. See L<HTML::FormFu::Filter::_Compound/field_order> for details.
 
     ---
     element:

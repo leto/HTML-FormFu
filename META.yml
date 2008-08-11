@@ -6,11 +6,11 @@ build_requires:
   ExtUtils::MakeMaker: 6.11
   Test::NoWarnings: 0
 distribution_type: module
-generated_by: 'Module::Install version 0.75'
+generated_by: 'Module::Install version 0.77'
 license: perl
 meta-spec:
-  url: http://module-build.sourceforge.net/META-spec-v1.3.html
-  version: 1.3
+  url: http://module-build.sourceforge.net/META-spec-v1.4.html
+  version: 1.4
 name: HTML-FormFu
 no_index:
   directory:
@@ -19,7 +19,6 @@ no_index:
     - share
     - inc
     - t
-    - examples
     - examples
 requires:
   Class::Accessor::Chained::Fast: 0
@@ -46,6 +45,8 @@ requires:
   Regexp::Copy: 0
   Task::Weaken: 0
   Template: 0
-  YAML::Syck: 0
+  YAML::Syck: 1.05
   perl: 5.8.1
-version: 0.03001
+resources:
+  license: http://dev.perl.org/licenses/
+version: 0.03002

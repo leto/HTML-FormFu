@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 3;
+use Test::More tests => 5;
 
 use HTML::FormFu;
 
@@ -12,7 +12,11 @@ $form->element('Text')->name('foo')->inflator('DateTime')
 
 $form->process( { foo => '31/12/2006' } );
 
+ok( $form->submitted_and_valid );
+
 my $value = $form->params->{foo};
+
+isa_ok( $value, 'DateTime' );
 
 is( $value->day,   31 );
 is( $value->month, 12 );

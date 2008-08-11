@@ -91,6 +91,7 @@ lib/HTML/FormFu/Constraint/AutoSet.pm
 lib/HTML/FormFu/Constraint/Bool.pm
 lib/HTML/FormFu/Constraint/Callback.pm
 lib/HTML/FormFu/Constraint/CallbackOnce.pm
+lib/HTML/FormFu/Constraint/DateTime.pm
 lib/HTML/FormFu/Constraint/DependOn.pm
 lib/HTML/FormFu/Constraint/Email.pm
 lib/HTML/FormFu/Constraint/Equal.pm
@@ -153,8 +154,11 @@ lib/HTML/FormFu/Exception/Transformer.pm
 lib/HTML/FormFu/Exception/Validator.pm
 lib/HTML/FormFu/FakeQuery.pm
 lib/HTML/FormFu/Filter.pm
+lib/HTML/FormFu/Filter/_Compound.pm
 lib/HTML/FormFu/Filter/Callback.pm
+lib/HTML/FormFu/Filter/CompoundDateTime.pm
 lib/HTML/FormFu/Filter/CompoundJoin.pm
+lib/HTML/FormFu/Filter/CompoundSprintf.pm
 lib/HTML/FormFu/Filter/CopyValue.pm
 lib/HTML/FormFu/Filter/Encode.pm
 lib/HTML/FormFu/Filter/HTMLEscape.pm
@@ -167,9 +171,12 @@ lib/HTML/FormFu/Filter/TrimEdges.pm
 lib/HTML/FormFu/Filter/UpperCase.pm
 lib/HTML/FormFu/Filter/Whitespace.pm
 lib/HTML/FormFu/I18N.pm
+lib/HTML/FormFu/I18N/da.pm
 lib/HTML/FormFu/I18N/de.pm
 lib/HTML/FormFu/I18N/en.pm
 lib/HTML/FormFu/I18N/es.pm
+lib/HTML/FormFu/I18N/fr.pm
+lib/HTML/FormFu/I18N/it.pm
 lib/HTML/FormFu/I18N/ja.pm
 lib/HTML/FormFu/I18N/pt_pt.pm
 lib/HTML/FormFu/Inflator.pm
@@ -254,6 +261,10 @@ t/constraints/bool.t
 t/constraints/callback.t
 t/constraints/callbackonce.t
 t/constraints/constraint_when.t
+t/constraints/constraint_when.yml
+t/constraints/constraint_when_default_empty_value.t
+t/constraints/constraint_when_default_empty_value.yml
+t/constraints/datetime_parser.t
 t/constraints/dependon.t
 t/constraints/email.t
 t/constraints/equal.t
@@ -297,6 +308,7 @@ t/deflators/compoundsplit_field_order.yml
 t/deflators/compoundsplit_split.t
 t/deflators/compoundsplit_split.yml
 t/deflators/strftime.t
+t/deprecated/element_defaults.t
 t/element_setup.t
 t/elements/blank.t
 t/elements/block.t
@@ -324,6 +336,7 @@ t/elements/date.t
 t/elements/date_default.t
 t/elements/date_natural.t
 t/elements/date_rename.t
+t/elements/field_default_empty_value.t
 t/elements/field_non_param.t
 t/elements/fieldset.t
 t/elements/file.t
@@ -400,6 +413,10 @@ t/filters/compoundjoin_field_order.t
 t/filters/compoundjoin_field_order.yml
 t/filters/compoundjoin_join.t
 t/filters/compoundjoin_join.yml
+t/filters/compoundsprintf.t
+t/filters/compoundsprintf.yml
+t/filters/compoundsprintf_field_order.t
+t/filters/compoundsprintf_field_order.yml
 t/filters/copyvalue.t
 t/filters/encode.t
 t/filters/htmlescape.t
@@ -432,8 +449,8 @@ t/form/config_callback.t
 t/form/config_callback.yml
 t/form/constraints_from_dbic.t
 t/form/constraints_from_dbic_rs.t
+t/form/default_args.t
 t/form/default_values.t
-t/form/element_defaults.t
 t/form/end.t
 t/form/error_message.t
 t/form/force_error_message.t
@@ -481,7 +498,11 @@ t/inflators/compounddatetime_field_order.yml
 t/inflators/datetime_optional.t
 t/inflators/datetime_parser.t
 t/inflators/datetime_regex.t
+t/inflators/datetime_regex_string.t
 t/inflators/datetime_strptime.t
+t/inflators/datetime_timezone.t
+t/inflators/datetime_with_constraint.t
+t/inflators/datetime_with_constraint.yml
 t/lib/HTMLFormFu/ElementSetup.pm
 t/lib/HTMLFormFu/I18N.pm
 t/lib/HTMLFormFu/I18N/en.pm

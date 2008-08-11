@@ -99,8 +99,8 @@ sub _process_when {
 
     # returns 1 if when condition is fullfilled or not defined
     # returns 0 if when condition is defined and not fullfilled
-	# If it's a callback, return callback's return value (so when
-	# condition is met if callback returns a true value)
+    # If it's a callback, return callback's return value (so when
+    # condition is met if callback returns a true value)
 
     # get when condition
     my $when = $self->when;
@@ -110,13 +110,13 @@ sub _process_when {
     croak "Parameter 'when' is not a hash ref" if ref $when ne 'HASH';
 
     # field or callback must be defined
-    my $when_field = $when->{field};
+    my $when_field    = $when->{field};
     my $when_callback = $when->{callback};
     croak "Parameter 'field' or 'callback' is not defined"
         if !defined $when_field && !defined $when_callback;
 
     # Callback will be the preferred thing
-    if ( $when_callback ) {
+    if ($when_callback) {
         no strict 'refs';
         return $when_callback->($params);
     }
@@ -270,9 +270,9 @@ This method expects a hashref with the following keys:
   values: Array of multiple values, one must match to fullfill the condition
   not: inverse the when condition - value(s) must not match
   callback: a callback can be supplied to perform complex checks. An hashref
-    of all parameters is passed. In this case all other keys are ignored,
-    including not. Return a true value for the constraint to be valid or
-    a false value to not apply it.
+    of all parameters is passed to the callback sub. In this case all other
+    keys are ignored, including not. You need to return a true value for
+    the constraint to be applied or a false value to not apply it.
 
 =head1 CORE CONSTRAINTS
 
@@ -290,11 +290,19 @@ This method expects a hashref with the following keys:
 
 =item L<HTML::FormFu::Constraint::CallbackOnce>
 
+=item L<HTML::FormFu::Constraint::DateTime>
+
 =item L<HTML::FormFu::Constraint::DependOn>
 
 =item L<HTML::FormFu::Constraint::Email>
 
 =item L<HTML::FormFu::Constraint::Equal>
+
+=item L<HTML::FormFu::Constraint::File>
+
+=item L<HTML::FormFu::Constraint::File::MIME>
+
+=item L<HTML::FormFu::Constraint::File::Size>
 
 =item L<HTML::FormFu::Constraint::Integer>
 

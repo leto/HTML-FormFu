@@ -5,7 +5,7 @@ use Exporter qw/ import /;
 
 use HTML::FormFu::Util
     qw/ _parse_args require_class _get_elements split_name _filter_components
-        _merge_hashes /;
+    _merge_hashes /;
 use Config::Any;
 use Data::Visitor::Callback;
 use Scalar::Util qw/ refaddr weaken blessed /;
@@ -30,6 +30,8 @@ our @form_and_block = qw/
     _single_validator
     _single_transformer
     _require_constraint
+    default_args
+    element_defaults
     get_element
     get_elements
     get_deflators
@@ -85,6 +87,49 @@ our %EXPORT_TAGS = (
     FORM_AND_ELEMENT => \@form_and_element,
 );
 
+sub default_args {
+    my ( $self, $arg ) = @_;
+
+    $self->{default_args} ||= {};
+
+    if ($arg) {
+
+        my @valid_keys = qw/ elements deflators filters constraints inflators
+            validators transformers output_processors /;
+
+        for my $key ( keys %$arg ) {
+            croak "not a valid key for default_args: '$key'"
+                if !grep { $key eq $_ } @valid_keys;
+        }
+
+        $self->{default_args} = _merge_hashes( $self->{default_args}, $arg );
+    }
+
+    return $self->{default_args};
+}
+
+sub element_defaults {
+    my ( $self, $arg ) = @_;
+
+    warn
+        "element_defaults() method deprecated and is provided for compatability only: "
+        . "use defaults()->{elements} instead as this will be removed\n";
+
+    $self->{default_args} ||= {};
+
+    if ($arg) {
+        if ( exists $self->{default_args}{elements} ) {
+            $self->{default_args}{elements}
+                = _merge_hashes( $self->{default_args}{elements}, $arg );
+        }
+        else {
+            $self->{default_args}{elements} = $arg;
+        }
+    }
+
+    return $self->{default_args}{elements};
+}
+
 sub _require_element {
     my ( $self, $arg ) = @_;
 
@@ -105,12 +150,13 @@ sub _require_element {
             parent => $self,
         } );
 
-    if ( $element->can('element_defaults') ) {
-        $element->element_defaults( dclone $self->element_defaults );
+    if ( $element->can('default_args') ) {
+        $element->default_args( dclone $self->default_args );
     }
 
-    if ( exists $self->element_defaults->{$type} ) {
-        %$arg = ( %{ $self->element_defaults->{$type} }, %$arg );
+    # handle default_args
+    if ( exists $self->default_args->{elements}{$type} ) {
+        %$arg = ( %{ $self->default_args->{elements}{$type} }, %$arg );
     }
 
     populate( $element, $arg );
@@ -204,6 +250,13 @@ sub _require_constraint {
             parent => $self,
         } );
 
+    # handle default_args
+    my $parent = $self->parent;
+
+    if ( exists $parent->default_args->{constraints}{$type} ) {
+        %$arg = ( %{ $parent->default_args->{constraints}{$type} }, %$arg );
+    }
+
     # inlined ObjectUtil::populate(), otherwise circular dependency
     eval {
         map { $constraint->$_( $arg->{$_} ) } keys %$arg;
@@ -251,8 +304,15 @@ sub clear_errors {
 sub populate {
     my ( $self, $arg ) = @_;
 
+    # we have to handle element_defaults seperately, as it is no longer a
+    # simple hash key
+
+    if ( exists $arg->{element_defaults} ) {
+        $self->element_defaults( delete $arg->{element_defaults} );
+    }
+
     my @keys = qw(
-        element_defaults auto_fieldset load_config_file element elements
+        default_args auto_fieldset load_config_file element elements
         default_values
         filter filters constraint constraints inflator inflators
         deflator deflators query validator validators transformer transformers
@@ -281,14 +341,14 @@ sub insert_before {
     # if $position is already a child of $object, remove it first
 
     for my $i ( 0 .. $#{ $self->_elements } ) {
-        if ( refaddr( $self->_elements->[ $i ] ) eq refaddr($object) ) {
+        if ( refaddr( $self->_elements->[$i] ) eq refaddr($object) ) {
             splice @{ $self->_elements }, $i, 1;
             last;
         }
     }
 
     for my $i ( 0 .. $#{ $self->_elements } ) {
-        if ( refaddr( $self->_elements->[ $i ] ) eq refaddr($position) ) {
+        if ( refaddr( $self->_elements->[$i] ) eq refaddr($position) ) {
             splice @{ $self->_elements }, $i, 0, $object;
             $object->{parent} = $position->{parent};
             weaken $object->{parent};
@@ -305,14 +365,14 @@ sub insert_after {
     # if $position is already a child of $object, remove it first
 
     for my $i ( 0 .. $#{ $self->_elements } ) {
-        if ( refaddr( $self->_elements->[ $i ] ) eq refaddr($object) ) {
+        if ( refaddr( $self->_elements->[$i] ) eq refaddr($object) ) {
             splice @{ $self->_elements }, $i, 1;
             last;
         }
     }
 
     for my $i ( 0 .. $#{ $self->_elements } ) {
-        if ( refaddr( $self->_elements->[ $i ] ) eq refaddr($position) ) {
+        if ( refaddr( $self->_elements->[$i] ) eq refaddr($position) ) {
             splice @{ $self->_elements }, $i + 1, 0, $object;
             $object->{parent} = $position->{parent};
             weaken $object->{parent};
@@ -384,7 +444,7 @@ sub _load_file {
     }
 
     for my $config ( ref $data eq 'ARRAY' ? @$data : $data ) {
-        $self->populate( dclone( $config ) );
+        $self->populate( dclone($config) );
     }
 
     return;
@@ -498,13 +558,13 @@ sub clone {
 
     my %new = %$self;
 
-    $new{_elements}        = [ map { $_->clone } @{ $self->_elements } ];
-    $new{attributes}       = dclone $self->attributes;
-    $new{tt_args}          = dclone $self->tt_args;
-    $new{languages}        = dclone $self->languages;
-    $new{model_config}     = dclone $self->model_config;
+    $new{_elements}    = [ map { $_->clone } @{ $self->_elements } ];
+    $new{attributes}   = dclone $self->attributes;
+    $new{tt_args}      = dclone $self->tt_args;
+    $new{languages}    = dclone $self->languages;
+    $new{model_config} = dclone $self->model_config;
 
-    $new{element_defaults} = $self->element_defaults;
+    $new{default_args} = $self->default_args;
 
     my $obj = bless \%new, ref $self;
 
@@ -558,7 +618,7 @@ sub get_nested_hash_value {
             $ref = \( $$ref->[$1] );
         }
         else {
-            return if !exists $$ref->{$_};
+            return if ref $$ref ne 'HASH' || !exists $$ref->{$_};
 
             $ref = \( $$ref->{$_} );
         }
@@ -627,14 +687,14 @@ sub nested_hash_key_exists {
         else {
             if ( $i == $#names ) {
                 return unless ref $$ref && ref($$ref) eq 'HASH';
-                
+
                 return exists $$ref->{$part} ? 1 : 0;
             }
 
             $ref = \( $$ref->{$part} );
         }
     }
-    
+
     return;
 }
 
@@ -880,7 +940,7 @@ sub _single_element {
         $arg = { type => $arg };
     }
     elsif ( ref $arg eq 'HASH' ) {
-        $arg = { %$arg }; # shallow clone
+        $arg = {%$arg};    # shallow clone
     }
     else {
         croak 'invalid args';
@@ -914,7 +974,7 @@ sub _single_deflator {
         $arg = { type => $arg };
     }
     elsif ( ref $arg eq 'HASH' ) {
-        $arg = { %$arg }; # shallow clone
+        $arg = {%$arg};    # shallow clone
     }
     else {
         croak 'invalid args';
@@ -951,7 +1011,7 @@ sub _single_filter {
         $arg = { type => $arg };
     }
     elsif ( ref $arg eq 'HASH' ) {
-        $arg = { %$arg }; # shallow clone
+        $arg = {%$arg};    # shallow clone
     }
     else {
         croak 'invalid args';
@@ -988,7 +1048,7 @@ sub _single_constraint {
         $arg = { type => $arg };
     }
     elsif ( ref $arg eq 'HASH' ) {
-        $arg = { %$arg }; # shallow clone
+        $arg = {%$arg};    # shallow clone
     }
     else {
         croak 'invalid args';
@@ -1025,7 +1085,7 @@ sub _single_inflator {
         $arg = { type => $arg };
     }
     elsif ( ref $arg eq 'HASH' ) {
-        $arg = { %$arg }; # shallow clone
+        $arg = {%$arg};    # shallow clone
     }
     else {
         croak 'invalid args';
@@ -1062,7 +1122,7 @@ sub _single_validator {
         $arg = { type => $arg };
     }
     elsif ( ref $arg eq 'HASH' ) {
-        $arg = { %$arg }; # shallow clone
+        $arg = {%$arg};    # shallow clone
     }
     else {
         croak 'invalid args';
@@ -1099,7 +1159,7 @@ sub _single_transformer {
         $arg = { type => $arg };
     }
     elsif ( ref $arg eq 'HASH' ) {
-        $arg = { %$arg }; # shallow clone
+        $arg = {%$arg};    # shallow clone
     }
     else {
         croak 'invalid args';
@@ -1212,6 +1272,13 @@ sub _require_deflator {
             parent => $self,
         } );
 
+    # handle default_args
+    my $parent = $self->parent;
+
+    if ( exists $parent->default_args->{deflators}{$type} ) {
+        %$opt = ( %{ $parent->default_args->{deflators}{$type} }, %$opt );
+    }
+
     $object->populate($opt);
 
     return $object;
@@ -1238,6 +1305,13 @@ sub _require_filter {
             type   => $type,
             parent => $self,
         } );
+
+    # handle default_args
+    my $parent = $self->parent;
+
+    if ( exists $parent->default_args->{filters}{$type} ) {
+        %$opt = ( %{ $parent->default_args->{filters}{$type} }, %$opt );
+    }
 
     $object->populate($opt);
 
@@ -1266,6 +1340,13 @@ sub _require_inflator {
             parent => $self,
         } );
 
+    # handle default_args
+    my $parent = $self->parent;
+
+    if ( exists $parent->default_args->{inflators}{$type} ) {
+        %$opt = ( %{ $parent->default_args->{inflators}{$type} }, %$opt );
+    }
+
     $object->populate($opt);
 
     return $object;
@@ -1292,6 +1373,13 @@ sub _require_validator {
             type   => $type,
             parent => $self,
         } );
+
+    # handle default_args
+    my $parent = $self->parent;
+
+    if ( exists $parent->default_args->{validators}{$type} ) {
+        %$opt = ( %{ $parent->default_args->{validators}{$type} }, %$opt );
+    }
 
     $object->populate($opt);
 
@@ -1320,6 +1408,13 @@ sub _require_transformer {
             parent => $self,
         } );
 
+    # handle default_args
+    my $parent = $self->parent;
+
+    if ( exists $parent->default_args->{transformers}{$type} ) {
+        %$opt = ( %{ $parent->default_args->{transformers}{$type} }, %$opt );
+    }
+
     $object->populate($opt);
 
     return $object;
@@ -1333,7 +1428,7 @@ sub _require_plugin {
     eval { my %x = %$arg };
     croak "options argument must be hash-ref" if $@;
 
-    my $abs   = $type =~ s/^\+//;
+    my $abs = $type =~ s/^\+//;
     my $class = $type;
 
     if ( !$abs ) {

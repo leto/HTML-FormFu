@@ -7,7 +7,7 @@ use Class::C3;
 use DateTime::Format::Builder;
 use DateTime::Format::Strptime;
 
-__PACKAGE__->mk_accessors(qw/ strptime _builder /);
+__PACKAGE__->mk_accessors(qw/ strptime time_zone _builder /);
 
 sub new {
     my $self = shift->next::method(@_);
@@ -18,9 +18,13 @@ sub new {
 }
 
 sub parser {
-    my $self = shift;
+    my ( $self, $arg ) = @_;
 
-    $self->_builder->parser(@_);
+    if ( exists $arg->{regex} && !ref $arg->{regex} ) {
+        $arg->{regex} = qr/$arg->{regex}/;
+    }
+
+    $self->_builder->parser($arg);
 
     return $self;
 }
@@ -32,6 +36,10 @@ sub inflator {
 
     my $dt = $self->_builder->parse_datetime($value);
 
+    if ( defined $self->time_zone ) {
+        $dt->set_time_zone( $self->time_zone );
+    }
+
     if ( defined $self->strptime ) {
         my $strptime = $self->strptime;
         my %args;
@@ -39,6 +47,12 @@ sub inflator {
         eval { %args = %$strptime; };
         if ($@) {
             %args = ( pattern => $strptime );
+        }
+
+        # Make strptime format the date with the specified time_zone,
+        # this is most likely what the user wants
+        if ( defined $self->time_zone ) {
+            $args{time_zone} = $self->time_zone;
         }
 
         my $formatter = DateTime::Format::Strptime->new(%args);
@@ -85,6 +99,7 @@ HTML::FormFu::Inflator::DateTime - DateTime inflator
         name: end_time
         inflators:
           - type: DateTime
+            time_zone: Europe/Rome
             parser:
               regex: '^ (\d{2}) - (\d{2}) - (\d{4}) $'
               params: [day, month, year]
@@ -100,7 +115,7 @@ Inflate dates into L<DateTime> objects.
 
 Arguments: \%args
 
-Required. Define the expected input string, so L<DataTime::Format::Builder> 
+Required. Define the expected input string, so L<DateTime::Format::Builder> 
 knows how to inflate it into a L<DateTime> object.
 
 Accepts arguments to be passed to L<DateTime::Format::Builder/parser>.
@@ -113,6 +128,15 @@ Arguments: $string
 
 Optional. Define the format that should be used if the L<DateTime> object is 
 stringified.
+
+=head2 time_zone
+
+Arguments: $string
+
+Optional. You can pass along a time_zone in which the DateTime will be
+created. This is useful if the string to parse does not contain time zone
+information and you want the DateTime to be in a specific zone instead
+of the floating one (which is likely).
 
 Accepts a hashref of arguments to be passed to 
 L<DateTime::Format::Strptime/new>. Alternatively, accepts a single string 
