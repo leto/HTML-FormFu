@@ -156,7 +156,6 @@ lib/HTML/FormFu/FakeQuery.pm
 lib/HTML/FormFu/Filter.pm
 lib/HTML/FormFu/Filter/_Compound.pm
 lib/HTML/FormFu/Filter/Callback.pm
-lib/HTML/FormFu/Filter/CompoundDateTime.pm
 lib/HTML/FormFu/Filter/CompoundJoin.pm
 lib/HTML/FormFu/Filter/CompoundSprintf.pm
 lib/HTML/FormFu/Filter/CopyValue.pm
@@ -240,6 +239,7 @@ t/bugs/error_msg.t
 t/bugs/field_no_name.t
 t/bugs/filter_run_once.t
 t/bugs/name_regex_chars.t
+t/bugs/not_nested.t
 t/bugs/populate_element_coderef.t
 t/bugs/render_processed_value_retain_default.t
 t/bugs/render_processed_value_retain_default.yml
@@ -352,6 +352,8 @@ t/elements/no_block_tag.t
 t/elements/no_block_tag.yml
 t/elements/no_container_tag.t
 t/elements/no_container_tag.yml
+t/elements/object.t
+t/elements/object/input
 t/elements/password.t
 t/elements/password_render_value.t
 t/elements/password_retain_default.t
@@ -476,6 +478,8 @@ t/form/javascript.t
 t/form/javascript_src.t
 t/form/model.t
 t/form/multiple_same_named_fields.t
+t/form/object.t
+t/form/object/form
 t/form/param.t
 t/form/param_array.t
 t/form/param_list.t
@@ -533,6 +537,10 @@ t/nested/constraints/minmaxfields.t
 t/nested/constraints/required.t
 t/nested/element_name.t
 t/nested/element_name.yml
+t/nested/elements/block_repeatable_multi_named.t
+t/nested/elements/block_repeatable_multi_named.yml
+t/nested/elements/block_repeatable_multi_named_filter.t
+t/nested/elements/block_repeatable_multi_named_filter.yml
 t/nested/elements/block_without_name.t
 t/nested/elements/block_without_name.yml
 t/nested/elements/checkbox_force_default.t
@@ -540,6 +548,8 @@ t/nested/elements/checkbox_retain_default.t
 t/nested/elements/date.t
 t/nested/elements/file_post.t
 t/nested/elements/file_post.txt
+t/nested/elements/multi.t
+t/nested/elements/multi_named.t
 t/nested/elements/radio.t
 t/nested/elements/radio_force_default.t
 t/nested/elements/radio_retain_default.t

@@ -34,6 +34,7 @@ requires:
   DateTime::Format::Strptime: 0
   DateTime::Locale: 0
   Email::Valid: 0
+  Exporter: 5.57
   File::ShareDir: 0
   HTML::Scrubber: 0
   HTML::TokeParser::Simple: 3.14
@@ -49,4 +50,4 @@ requires:
   perl: 5.8.1
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.03002
+version: 0.03003

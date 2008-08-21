@@ -73,7 +73,7 @@ __PACKAGE__->mk_inherited_merging_accessors(qw/ tt_args config_callback /);
 *plugins           = \&plugin;
 *add_plugins       = \&add_plugin;
 
-our $VERSION = '0.03002';
+our $VERSION = '0.03003';
 $VERSION = eval $VERSION;
 
 Class::C3::initialize();
@@ -922,6 +922,8 @@ sub render_data_non_recursive {
     $render{form} = \%render;
     weaken( $render{form} );
 
+    $render{object} = $self;
+
     if ( $self->force_error_message
         || ( $self->has_errors && defined $self->form_error_message ) )
     {
@@ -1516,7 +1518,7 @@ For example, to make every C<Text> element automatically have a
 L<size|HTML::FormFu::Element/size> of C<10>, and make every C<Strftime> 
 deflator automatically get it's strftime set to C<%d/%m/%Y>:
 
-    element_args:
+    default_args:
         elements:
             Text:
                 size: 10
@@ -1527,7 +1529,7 @@ deflator automatically get it's strftime set to C<%d/%m/%Y>:
 To take it even further, you can even make all DateTime elements automatically
 get an appropriate Strftime deflator and a DateTime inflator:
 
-    element_args:
+    default_args:
         elements:
             DateTime:
                 deflators:
@@ -1542,7 +1544,7 @@ Note: Unlike the proper methods which have aliases, for example L</elements>
 which is an alias for L</element> - the keys given to C<default_args> must
 be of the plural form, e.g.:
 
-    element_args:
+    default_args:
         elements:          {}
         deflators:         {}
         filters:           {}

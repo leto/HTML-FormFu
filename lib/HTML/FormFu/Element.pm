@@ -29,7 +29,7 @@ __PACKAGE__->mk_attr_accessors(qw/ id /);
 
 __PACKAGE__->mk_accessors(
     qw/
-        name type filename is_field is_repeatable /
+        name type filename is_field is_block is_repeatable /
 );
 
 __PACKAGE__->mk_inherited_accessors(qw/ tt_args render_method /);
@@ -159,6 +159,7 @@ sub render_data_non_recursive {
         stash      => $self->stash,
         parent     => $self->parent,
         form       => sub { return shift->{parent}->form },
+        object     => $self,
         @_ ? %{ $_[0] } : () );
 
     weaken( $render{parent} );

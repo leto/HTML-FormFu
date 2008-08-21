@@ -98,10 +98,17 @@ sub nested {
     croak 'cannot set nested' if @_;
 
     if ( defined $self->name ) {
-        while ( defined $self->parent ) {
-            $self = $self->parent;
+        my $parent = $self;
 
-            return 1 if defined $self->nested_name;
+        while ( defined $parent->parent ) {
+            $parent = $parent->parent;
+
+            if ( $parent->can('is_field') && $parent->is_field ) {
+                return 1 if defined $parent->name;
+            }
+            else {
+                return 1 if defined $parent->nested_name;
+            }
         }
     }
 
@@ -139,8 +146,14 @@ sub nested_names {
         while ( defined $parent->parent ) {
             $parent = $parent->parent;
 
-            push @names, $parent->nested_name
-                if defined $parent->nested_name;
+            if ( $parent->can('is_field') && $parent->is_field ) {
+                push @names, $parent->name
+                    if defined $parent->name;
+            }
+            else {
+                push @names, $parent->nested_name
+                    if defined $parent->nested_name;
+            }
         }
 
         if (@names) {
