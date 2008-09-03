@@ -4,9 +4,9 @@ use strict;
 use base 'HTML::FormFu::Filter';
 use Class::C3;
 
-use Storable qw/ dclone /;
+use Storable qw( dclone );
 
-__PACKAGE__->mk_accessors(qw/ allow /);
+__PACKAGE__->mk_accessors( qw( allow ) );
 
 use HTML::Scrubber;
 
@@ -39,7 +39,7 @@ __END__
 
 =head1 NAME
 
-HTML::FormFu::Filter::HTMLScrubber
+HTML::FormFu::Filter::HTMLScrubber - filter removing HTML markup
 
 =head1 DESCRIPTION
 

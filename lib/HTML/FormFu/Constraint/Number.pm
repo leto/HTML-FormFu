@@ -3,7 +3,7 @@ package HTML::FormFu::Constraint::Number;
 use strict;
 use base 'HTML::FormFu::Constraint';
 
-use Scalar::Util qw/ looks_like_number /;
+use Scalar::Util qw( looks_like_number );
 
 sub constrain_value {
     my ( $self, $value ) = @_;
@@ -31,7 +31,7 @@ The input must be a number.
 
 Is a sub-class of, and inherits methods from L<HTML::FormFu::Constraint>
 
-L<HTML::FormFu::FormFu>
+L<HTML::FormFu>
 
 =head1 AUTHOR
 

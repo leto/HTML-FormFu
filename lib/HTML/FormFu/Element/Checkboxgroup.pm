@@ -4,16 +4,21 @@ use strict;
 use base 'HTML::FormFu::Element::_Group';
 use Class::C3;
 
+use HTML::FormFu::Constants qw( $EMPTY_STR );
 use HTML::FormFu::Util qw( append_xml_attribute process_attrs );
+use List::MoreUtils qw( any );
+
+__PACKAGE__->mk_item_accessors(qw/ input_type /);
 
 sub new {
     my $self = shift->next::method(@_);
 
-    $self->filename('input');
-    $self->field_filename('checkboxgroup_tag');
-    $self->label_tag('legend');
-    $self->container_tag('fieldset');
-    $self->multi_value(1);
+    $self->filename      ( 'input' );
+    $self->field_filename( 'checkboxgroup_tag' );
+    $self->label_tag     ( 'legend' );
+    $self->container_tag ( 'fieldset' );
+    $self->multi_value   ( 1 );
+    $self->input_type('checkbox');
 
     return $self;
 }
@@ -76,14 +81,14 @@ sub _prepare_attrs {
     if (   $submitted
         && defined $value
         && (ref $value eq 'ARRAY'
-            ? grep { $_ eq $option->{value} } @$value
+            ? any { $_ eq $option->{value} } @$value
             : $value eq $option->{value} ) )
     {
         $option->{attributes}{checked} = 'checked';
     }
     elsif ($submitted
         && $self->retain_default
-        && ( !defined $value || $value eq "" )
+        && ( !defined $value || $value eq $EMPTY_STR )
         && $self->value eq $option->{value} )
     {
         $option->{attributes}{checked} = 'checked';
@@ -94,7 +99,7 @@ sub _prepare_attrs {
     elsif (
         defined $default
         && (ref $default eq 'ARRAY'
-            ? grep { $_ eq $option->{value} } @$default
+            ? any { $_ eq $option->{value} } @$default
             : $default eq $option->{value} ) )
     {
         $option->{attributes}{checked} = 'checked';
@@ -103,15 +108,18 @@ sub _prepare_attrs {
 }
 
 sub render_data_non_recursive {
-    my $self = shift;
+    my ( $self, $args ) = @_;
 
     my $render = $self->next::method( {
-            field_filename => $self->field_filename,
-            @_ ? %{ $_[0] } : () } );
+        field_filename => $self->field_filename,
+        input_type     => $self->input_type,
+        $args ? %$args : (),
+    } );
 
     for my $item ( @{ $render->{options} } ) {
-        append_xml_attribute( $item->{attributes}, 'class', 'subgroup' )
-            if exists $item->{group};
+        if ( exists $item->{group} ) {
+            append_xml_attribute( $item->{attributes}, 'class', 'subgroup' );
+        }
     }
 
     return $render;
@@ -127,34 +135,41 @@ sub _string_field {
     for my $option ( @{ $render->{options} } ) {
         if ( defined $option->{group} ) {
             $html .= sprintf "<span%s>\n",
-                process_attrs( $option->{attributes} );
+                process_attrs( $option->{attributes} ),
+                ;
 
             for my $item ( @{ $option->{group} } ) {
                 $html .= sprintf
-                    qq{<span>\n<input name="%s" type="checkbox" value="%s"%s />},
+                    qq{<span>\n<input name="%s" type="%s" value="%s"%s />},
                     $render->{nested_name},
+                    $render->{input_type},
                     $item->{value},
-                    process_attrs( $item->{attributes} );
+                    process_attrs( $item->{attributes} ),
+                    ;
 
                 $html .= sprintf
                     "\n<label%s>%s</label>\n</span>\n",
                     process_attrs( $item->{label_attributes} ),
-                    $item->{label};
+                    $item->{label},
+                    ;
             }
 
             $html .= "</span>\n";
         }
         else {
             $html .= sprintf
-                qq{<span>\n<input name="%s" type="checkbox" value="%s"%s />},
+                qq{<span>\n<input name="%s" type="%s" value="%s"%s />},
                 $render->{nested_name},
+                $render->{input_type},
                 $option->{value},
-                process_attrs( $option->{attributes} );
+                process_attrs( $option->{attributes} ),
+                ;
 
             $html .= sprintf
                 "\n<label%s>%s</label>\n</span>\n",
                 process_attrs( $option->{label_attributes} ),
-                $option->{label};
+                $option->{label},
+                ;
         }
     }
 
@@ -225,7 +240,7 @@ L<HTML::FormFu::Element::_Group>,
 L<HTML::FormFu::Element::_Field>, 
 L<HTML::FormFu::Element>
 
-L<HTML::FormFu::FormFu>
+L<HTML::FormFu>
 
 =head1 AUTHOR
 

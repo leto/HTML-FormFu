@@ -9,6 +9,7 @@ all_from 'lib/HTML/FormFu.pm';
 # version 5.567 that ships with perl 5.82 is no good
 requires 'Exporter' => '5.57';
 
+requires 'Captcha::reCAPTCHA' => 0.92;
 requires 'Class::Accessor::Chained::Fast';
 requires 'Class::C3';
 requires 'Config::Any' => '0.10'; # supports multi-doc config files
@@ -26,9 +27,12 @@ requires 'File::ShareDir';
 requires 'HTML::Scrubber';
 requires 'HTML::TokeParser::Simple' => '3.14';
 requires 'HTTP::Headers' => '1.64';
+requires 'List::Util';
 requires 'List::MoreUtils';
 requires 'Locale::Maketext::Simple';
 requires 'Module::Pluggable';
+requires 'Pod::Help';
+requires 'Readonly';
 requires 'Regexp::Copy';
 requires 'Regexp::Common';
 requires 'Task::Weaken'; # to ensure Scalar::Util was built with weaken()
@@ -43,6 +47,7 @@ tests 't/*.t t/*/*.t';
 no_index directory => 'examples';
 
 install_script('bin/html_formfu_deploy.pl');
+install_script('bin/html_formfu_dumpconf.pl');
 install_share();
 
 auto_install();

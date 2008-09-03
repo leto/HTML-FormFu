@@ -52,9 +52,15 @@ L</HTML::FormFu Template Configuration>.
 
 =head2 HTML::FormFu form configuration files
 
-If you have L<YAML::Syck> installed, your YAML format form configuration 
-files will automatically be decoded by L<HTML::FormFu/load_config_file>, 
-which automatically sets C<$YAML::Syck::ImplicitUnicode = 1>.
+If you're using C<YAML> config files, your files will automatically be
+decoded by C<load_config_file|HTML::FormFu/load_config_file> and
+C<load_config_filestem|HTML::FormFu/load_config_filestem>, which
+automatically sets C<< $YAML::Syck::ImplicitUnicode = 1 >>.
+
+If you have L<Config::General> config files, your files will automatically
+be decoded by C<load_config_file|HTML::FormFu/load_config_file> and
+C<load_config_filestem|HTML::FormFu/load_config_filestem>, which
+automatically sets L<Config::General's|Config::General> C<-UTF8> setting.
 
 =head2 Your perl source code
 
@@ -78,36 +84,80 @@ application to the browser - see L</Catalyst Configuration>.
 
 Add L<Catalyst::Plugin::Unicode> to the list of Catalyst plugins:
 
-    use Catalyst qw/ ConfigLoader Static::Simple Unicode /;
+    use Catalyst qw( ConfigLoader Static::Simple Unicode );
 
 =head2 DBIx::Class Configuration
 
 Add L<DBIx::Class::UTF8Columns> to the list of components loaded, for each 
 table that has columns storing unicode:
 
-    __PACKAGE__->load_components(qw/ UTF8Columns HTML::FormFu PK::Auto Core /);
+    __PACKAGE__->load_components( qw( UTF8Columns HTML::FormFu PK::Auto Core ) );
 
 Pass each column name that will store unicode to C<utf8_columns()>:
 
-    __PACKAGE__->utf8_columns(qw/ lastname firstname /);
+    __PACKAGE__->utf8_columns( qw( lastname firstname ) );
 
 =head2 TT Configuration
 
 Tell TT to decode all template files, by adding the following to your 
-C<myapp.yml> Catalyst configuration file:
+application config in MyApp.pm
 
-    'View::TT':
-      ENCODING: UTF-8
+    package MyApp;
+    use strict;
+    use parent 'Catalyst';
+    use Catalyst qw( ConfigLoader );
+    
+    MyApp->config({
+        'View::TT' => {
+            ENCODING => 'UTF-8',
+        },
+    });
+    
+    1;
 
 =head2 HTML::FormFu Template Configuration
 
 Make C<HTML::FormFu> tell TT to decode all template files, by adding the 
 following to your C<myapp.yml> Catalyst configuration file:
 
-    'Controller::HTML::FormFu':
-      constructor:
-        tt_args:
-          ENCODING: UTF-8
+    package MyApp;
+    use strict;
+    use parent 'Catalyst';
+    use Catalyst qw( ConfigLoader );
+    
+    MyApp->config({
+        'Controller::HTML::FormFu' => {
+            constructor => {
+                tt_args => {
+                    ENCODING => 'UTF-8',
+                },
+            },
+        },
+    });
+    
+    1;
+
+These above 2 examples should be combined, like so:
+
+    package MyApp;
+    use strict;
+    use parent 'Catalyst';
+    use Catalyst qw( ConfigLoader );
+    
+    MyApp->config({
+        'Controller::HTML::FormFu' => {
+            constructor => {
+                tt_args => {
+                    ENCODING => 'UTF-8',
+                },
+            },
+        },
+        'View::TT' => {
+            ENCODING => 'UTF-8',
+        },
+    });
+    
+    1;
 
 =head1 AUTHORS
 

@@ -3,19 +3,24 @@ package HTML::FormFu::Filter::Regex;
 use strict;
 use base 'HTML::FormFu::Filter';
 
-__PACKAGE__->mk_accessors(qw/ match replace /);
+use HTML::FormFu::Constants qw( $EMPTY_STR );
+
+__PACKAGE__->mk_item_accessors( qw( match replace eval ) );
 
 sub filter {
     my ( $self, $value ) = @_;
 
     return if !defined $value;
 
-    my $match   = $self->match;
-    my $replace = $self->replace;
-    $match   = qr/./ if !defined $match;
-    $replace = ''    if !defined $replace;
+    my $match   = defined $self->match   ? $self->match   : qr/./;
+    my $replace = defined $self->replace ? $self->replace : $EMPTY_STR ;
 
-    $value =~ s/$match/$replace/g;
+    if ( $self->eval ) {
+        $value =~ s/$match/$replace/gee;
+    }
+    else {
+        $value =~ s/$match/$replace/g;
+    }
 
     return $value;
 }
@@ -26,7 +31,7 @@ __END__
 
 =head1 NAME
 
-HTML::FormFu::Filter::Regex
+HTML::FormFu::Filter::Regex - regexp-based match/replace filter
 
 =head1 SYNOPSIS
 
@@ -55,6 +60,15 @@ A string to be used in the "right-hand side" of a C<s///g> regular
 expression. The string will replace every occurance of L</match>.
 
 Default Value: ''
+
+=head2 eval
+
+Arguments: $bool
+
+If true, the regex modifier C</e> is used, so that the contents of the
+L</replace> string are C<eval>'d.
+
+This allows the use of variables such as C<$1> or any other perl expression.
 
 =head1 AUTHOR
 

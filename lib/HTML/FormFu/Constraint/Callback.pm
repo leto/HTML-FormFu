@@ -3,7 +3,7 @@ package HTML::FormFu::Constraint::Callback;
 use strict;
 use base 'HTML::FormFu::Constraint';
 
-__PACKAGE__->mk_accessors(qw/ callback /);
+__PACKAGE__->mk_item_accessors( qw( callback ) );
 
 sub constrain_value {
     my ( $self, $value, $params ) = @_;
@@ -66,7 +66,7 @@ Arguments: "subroutine-name"
 
 Is a sub-class of, and inherits methods from L<HTML::FormFu::Constraint>
 
-L<HTML::FormFu::FormFu>
+L<HTML::FormFu>
 
 =head1 LIMITATIONS
 

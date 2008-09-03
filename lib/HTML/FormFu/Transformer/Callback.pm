@@ -3,7 +3,7 @@ package HTML::FormFu::Transformer::Callback;
 use strict;
 use base 'HTML::FormFu::Transformer';
 
-__PACKAGE__->mk_accessors(qw/ callback /);
+__PACKAGE__->mk_item_accessors( qw( callback ) );
 
 sub transformer {
     my ( $self, $value, $params ) = @_;
@@ -55,7 +55,7 @@ Arguments: "subroutine-name"
 
 Is a sub-class of, and inherits methods from L<HTML::FormFu::Transformer>
 
-L<HTML::FormFu::FormFu>
+L<HTML::FormFu>
 
 =head1 AUTHOR
 

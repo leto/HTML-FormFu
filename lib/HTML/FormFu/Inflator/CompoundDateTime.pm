@@ -4,18 +4,22 @@ use strict;
 use base 'HTML::FormFu::Inflator';
 use Class::C3;
 
+use HTML::FormFu::Constants qw( $EMPTY_STR );
 use DateTime;
 use DateTime::Format::Strptime;
+use List::MoreUtils qw( none );
 use Carp qw( croak );
 
-__PACKAGE__->mk_accessors(qw/ field_order strptime /);
+__PACKAGE__->mk_item_accessors( qw( strptime ) );
+
+__PACKAGE__->mk_accessors( qw( field_order ) );
 
 my @known_fields = qw( year month day hour minute second nanosecond time_zone );
 
 sub inflator {
     my ( $self, $value ) = @_;
 
-    return unless defined $value && $value ne "";
+    return if !defined $value || $value eq $EMPTY_STR;
 
     my ( $multi, @fields ) = @{ $self->parent->get_fields };
     my %input;
@@ -23,7 +27,7 @@ sub inflator {
     if ( defined( my $order = $self->field_order ) ) {
         for my $order (@$order) {
             croak "unknown DateTime field_order name"
-                unless grep { $order eq $_ } @known_fields;
+                if none { $order eq $_ } @known_fields;
 
             my $field = shift @fields;
             my $name  = $field->name;
@@ -34,7 +38,7 @@ sub inflator {
     else {
         for my $name ( keys %$value ) {
             croak "unknown DateTime field name"
-                unless grep { $name eq $_ } @known_fields;
+                if none { $name eq $_ } @known_fields;
         }
 
         %input = %$value;
@@ -50,7 +54,8 @@ sub inflator {
         my $strptime = $self->strptime;
         my %args;
 
-        eval { %args = %$strptime; };
+        eval { %args = %$strptime };
+        
         if ($@) {
             %args = ( pattern => $strptime );
         }

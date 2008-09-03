@@ -3,7 +3,7 @@ package HTML::FormFu::Validator::Callback;
 use strict;
 use base 'HTML::FormFu::Validator';
 
-__PACKAGE__->mk_accessors(qw/ callback /);
+__PACKAGE__->mk_item_accessors( qw( callback ) );
 
 sub validate_value {
     my ( $self, $value ) = @_;
@@ -53,7 +53,7 @@ Arguments: "subroutine-name"
 
 Is a sub-class of, and inherits methods from L<HTML::FormFu::Validator>
 
-L<HTML::FormFu::FormFu>
+L<HTML::FormFu>
 
 =head1 AUTHOR
 

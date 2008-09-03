@@ -18,7 +18,7 @@ __END__
 
 =head1 NAME
 
-HTML::FormFu::Element::Hr
+HTML::FormFu::Element::Hr - horizontal-rule element
 
 =head1 DESCRIPTION
 
@@ -30,7 +30,7 @@ Is a sub-class of, and inherits methods from
 L<HTML::FormFu::Element::NonBlock>, 
 L<HTML::FormFu::Element>
 
-L<HTML::FormFu::FormFu>
+L<HTML::FormFu>
 
 =head1 AUTHOR
 

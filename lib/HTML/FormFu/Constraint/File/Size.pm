@@ -5,7 +5,7 @@ use base 'HTML::FormFu::Constraint';
 
 use Scalar::Util qw( blessed );
 
-__PACKAGE__->mk_accessors(qw/ minimum maximum /);
+__PACKAGE__->mk_item_accessors( qw( minimum maximum ) );
 
 *min = \&minimum;
 *max = \&maximum;
@@ -15,7 +15,7 @@ sub constrain_value {
 
     return 1 if !defined $value || $value eq '';
 
-    return unless blessed($value) && $value->isa('HTML::FormFu::Upload');
+    return if !blessed($value) || !$value->isa('HTML::FormFu::Upload');
 
     my $min = $self->minimum;
     my $max = $self->maximum;
@@ -71,7 +71,7 @@ L</max> is an alias for L</maximum>.
 
 Is a sub-class of, and inherits methods from L<HTML::FormFu::Constraint>
 
-L<HTML::FormFu::FormFu>
+L<HTML::FormFu>
 
 =head1 AUTHOR
 

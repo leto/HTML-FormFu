@@ -7,8 +7,8 @@ use Class::C3;
 sub new {
     my $self = shift->next::method(@_);
 
-    $self->field_type('button');
-    $self->retain_default(1);
+    $self->field_type    ( 'button' );
+    $self->retain_default( 1 );
 
     return $self;
 }
@@ -40,7 +40,7 @@ L<HTML::FormFu::Element::_Input>,
 L<HTML::FormFu::Element::_Field>, 
 L<HTML::FormFu::Element>
 
-L<HTML::FormFu::FormFu>
+L<HTML::FormFu>
 
 =head1 AUTHOR
 

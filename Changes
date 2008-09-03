@@ -1,3 +1,45 @@
+0.03004 2008-09-03
+
+    - New reCAPTCHA element.
+    
+    - New pt_br (Brazilian Portuguese) translation from Daniel Nicoletti.
+    
+    - New load_config_filestem() method for loading config files without
+      having to specify the file extension.
+    
+    - New html_formfu_dumpconf.pl script, for viewing config files structure.
+    
+    - Assorted optimizations, providing over 20% runtime speedup.
+    
+    - Radio element now inherits from Checkbox, to remove duplicated code.
+    
+    - Radiogroup element now inherits from Checkboxgroup, to remove duplicated
+      code.
+    
+    - checkboxgroup_tag template file has been removed - Checkboxgroup now just
+      uses radiogroup_tag file.
+    
+    - All non-english I18N packages now correctly "use utf8;"
+    
+    - load_config_file() now switches on Config-General's UTF8, so that files
+      are correctly decoded.
+    
+    - Regex filter now has an eval() method, which if true, eval's the
+      contents of replace(), to allow the use of $1 variables or any other
+      perl expression.
+    
+    - Allow languages() to be a single value, rather than just an arrayref.
+    
+    - CompoundJoin filter now ignores empty values.
+    
+    - examples/unicode updated.
+    
+    - Manual-Unicode cat. config examples changed to use MyApp->config().
+    
+    - Stop warnings for undefined attributes - reported by Rod Taylor.
+    
+    - Documentation improvements by Ansgar Burchardt.
+
 0.03003 2008-08-21
 
     - Form and elements inside template files now have access to original

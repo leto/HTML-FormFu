@@ -1,4 +1,5 @@
 bin/html_formfu_deploy.pl
+bin/html_formfu_dumpconf.pl
 Changes
 examples/unicode/Changes
 examples/unicode/database.sql
@@ -12,31 +13,28 @@ examples/unicode/lib/unicode/View/TT/Alloy.pm
 examples/unicode/Makefile.PL
 examples/unicode/README
 examples/unicode/root/favicon.ico
-examples/unicode/root/formfu/blank
 examples/unicode/root/formfu/block
+examples/unicode/root/formfu/checkboxgroup
+examples/unicode/root/formfu/checkboxgroup_tag
 examples/unicode/root/formfu/content_button
 examples/unicode/root/formfu/end_block
 examples/unicode/root/formfu/end_form
 examples/unicode/root/formfu/field
 examples/unicode/root/formfu/form
-examples/unicode/root/formfu/form_error_message
-examples/unicode/root/formfu/hidden
 examples/unicode/root/formfu/input
 examples/unicode/root/formfu/input_tag
 examples/unicode/root/formfu/label
-examples/unicode/root/formfu/legend
 examples/unicode/root/formfu/multi
-examples/unicode/root/formfu/multi_ltr
-examples/unicode/root/formfu/multi_rtl
 examples/unicode/root/formfu/non_block
-examples/unicode/root/formfu/radiogroup
-examples/unicode/root/formfu/radiogroup_tag
-examples/unicode/root/formfu/select
+examples/unicode/root/formfu/recaptcha
+examples/unicode/root/formfu/repeatable
 examples/unicode/root/formfu/select_tag
 examples/unicode/root/formfu/start_block
 examples/unicode/root/formfu/start_form
 examples/unicode/root/formfu/textarea_tag
 examples/unicode/root/forms/index.yml
+examples/unicode/root/forms/view.conf
+examples/unicode/root/forms/view.yml
 examples/unicode/root/index.tt
 examples/unicode/root/static/images/btn_120x50_built.png
 examples/unicode/root/static/images/btn_120x50_built_shadow.png
@@ -48,6 +46,7 @@ examples/unicode/root/static/images/btn_88x31_powered.png
 examples/unicode/root/static/images/btn_88x31_powered_shadow.png
 examples/unicode/root/static/images/catalyst_logo.png
 examples/unicode/root/vertically-aligned.css
+examples/unicode/root/view.tt
 examples/unicode/script/unicode_cgi.pl
 examples/unicode/script/unicode_create.pl
 examples/unicode/script/unicode_fastcgi.pl
@@ -83,6 +82,7 @@ inc/Module/Install/WriteAll.pm
 lib/HTML/FormFu.pm
 lib/HTML/FormFu/Attribute.pm
 lib/HTML/FormFu/base.pm
+lib/HTML/FormFu/Constants.pm
 lib/HTML/FormFu/Constraint.pm
 lib/HTML/FormFu/Constraint/_others.pm
 lib/HTML/FormFu/Constraint/AllOrNone.pm
@@ -106,6 +106,7 @@ lib/HTML/FormFu/Constraint/MinMaxFields.pm
 lib/HTML/FormFu/Constraint/Number.pm
 lib/HTML/FormFu/Constraint/Printable.pm
 lib/HTML/FormFu/Constraint/Range.pm
+lib/HTML/FormFu/Constraint/reCAPTCHA.pm
 lib/HTML/FormFu/Constraint/Regex.pm
 lib/HTML/FormFu/Constraint/Required.pm
 lib/HTML/FormFu/Constraint/Set.pm
@@ -138,6 +139,7 @@ lib/HTML/FormFu/Element/Multi.pm
 lib/HTML/FormFu/Element/Password.pm
 lib/HTML/FormFu/Element/Radio.pm
 lib/HTML/FormFu/Element/Radiogroup.pm
+lib/HTML/FormFu/Element/reCAPTCHA.pm
 lib/HTML/FormFu/Element/Repeatable.pm
 lib/HTML/FormFu/Element/Reset.pm
 lib/HTML/FormFu/Element/Select.pm
@@ -177,6 +179,7 @@ lib/HTML/FormFu/I18N/es.pm
 lib/HTML/FormFu/I18N/fr.pm
 lib/HTML/FormFu/I18N/it.pm
 lib/HTML/FormFu/I18N/ja.pm
+lib/HTML/FormFu/I18N/pt_br.pm
 lib/HTML/FormFu/I18N/pt_pt.pm
 lib/HTML/FormFu/Inflator.pm
 lib/HTML/FormFu/Inflator/CompoundDateTime.pm
@@ -220,7 +223,7 @@ share/templates/tt/xhtml/input_tag
 share/templates/tt/xhtml/label
 share/templates/tt/xhtml/multi
 share/templates/tt/xhtml/non_block
-share/templates/tt/xhtml/radiogroup_tag
+share/templates/tt/xhtml/recaptcha
 share/templates/tt/xhtml/repeatable
 share/templates/tt/xhtml/select_tag
 share/templates/tt/xhtml/start_block
@@ -331,6 +334,8 @@ t/elements/checkbox.t
 t/elements/checkbox_force_default.t
 t/elements/checkbox_retain_default.t
 t/elements/checkboxgroup.t
+t/elements/combo_box.t
+t/elements/combo_box.yml
 t/elements/content_button.t
 t/elements/date.t
 t/elements/date_default.t
@@ -370,6 +375,8 @@ t/elements/radiogroup_retain_default.t
 t/elements/radiogroup_subgroup.t
 t/elements/radiogroup_unknown_opt.t
 t/elements/radiogroup_xml.t
+t/elements/recaptcha.t
+t/elements/recaptcha.yml
 t/elements/render_method.t
 t/elements/repeatable_counter_name.t
 t/elements/repeatable_counter_name.yml
@@ -425,6 +432,8 @@ t/filters/htmlescape.t
 t/filters/htmlscrubber.t
 t/filters/lowercase.t
 t/filters/nonnumeric.t
+t/filters/regex_eval.t
+t/filters/regex_eval.yml
 t/filters/split.t
 t/filters/split.yml
 t/filters/trimedges.t
@@ -527,6 +536,7 @@ t/load_config_file_multiple.t
 t/load_config_file_multiple.yml
 t/load_config_file_multiple1.yml
 t/load_config_file_multiple2.yml
+t/load_config_filestem.t
 t/multiple_select_fields.t
 t/multiple_text_fields.t
 t/nested/constraints/allornone.t

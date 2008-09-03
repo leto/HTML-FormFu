@@ -21,6 +21,7 @@ no_index:
     - t
     - examples
 requires:
+  Captcha::reCAPTCHA: 0.92
   Class::Accessor::Chained::Fast: 0
   Class::C3: 0
   Config::Any: 0.10
@@ -40,8 +41,11 @@ requires:
   HTML::TokeParser::Simple: 3.14
   HTTP::Headers: 1.64
   List::MoreUtils: 0
+  List::Util: 0
   Locale::Maketext::Simple: 0
   Module::Pluggable: 0
+  Pod::Help: 0
+  Readonly: 0
   Regexp::Common: 0
   Regexp::Copy: 0
   Task::Weaken: 0
@@ -50,4 +54,4 @@ requires:
   perl: 5.8.1
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.03003
+version: 0.03004

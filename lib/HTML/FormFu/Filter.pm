@@ -3,13 +3,15 @@ package HTML::FormFu::Filter;
 use strict;
 use Class::C3;
 
-use HTML::FormFu::Attribute qw( mk_accessors );
+use HTML::FormFu::Attribute qw( mk_item_accessors mk_accessors );
 use HTML::FormFu::ObjectUtil qw(
     populate form name parent nested_name nested_names get_nested_hash_value
     set_nested_hash_value nested_hash_key_exists );
 use Carp qw( croak );
 
-__PACKAGE__->mk_accessors(qw/ type localize_args /);
+__PACKAGE__->mk_item_accessors( qw( type ) );
+
+__PACKAGE__->mk_accessors( qw( localize_args ) );
 
 sub new {
     my $class = shift;
@@ -38,7 +40,7 @@ sub process {
     my $filtered;
 
     if ( ref $value eq 'ARRAY' ) {
-        $filtered = [ map { $self->filter( $_, $params ); } @$value ];
+        $filtered = [ map { $self->filter( $_, $params ) } @$value ];
     }
     else {
         $filtered = $self->filter( $value, $params );

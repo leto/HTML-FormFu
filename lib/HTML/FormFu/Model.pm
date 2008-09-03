@@ -3,12 +3,12 @@ package HTML::FormFu::Model;
 use strict;
 use Class::C3;
 
-use HTML::FormFu::Attribute qw( mk_accessors );
+use HTML::FormFu::Attribute qw( mk_accessors mk_item_accessors );
 use HTML::FormFu::ObjectUtil qw( form parent );
 use Scalar::Util qw( refaddr );
 use Carp qw( croak );
 
-__PACKAGE__->mk_accessors(qw/ type /);
+__PACKAGE__->mk_item_accessors( qw( type ) );
 
 sub new {
     my $class = shift;
@@ -19,7 +19,7 @@ sub new {
 
     my $self = bless {}, $class;
 
-    for my $arg (qw/ parent type /) {
+    for my $arg (qw( parent type )) {
         croak "$arg attribute required" if !exists $attrs{$arg};
 
         $self->$arg( $attrs{$arg} );

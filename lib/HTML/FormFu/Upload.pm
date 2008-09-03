@@ -3,11 +3,11 @@ package HTML::FormFu::Upload;
 use strict;
 use Carp qw( croak );
 
-use HTML::FormFu::Attribute qw( mk_accessors );
+use HTML::FormFu::Attribute qw( mk_item_accessors );
 use HTML::FormFu::ObjectUtil qw( form parent populate );
 use HTML::FormFu::UploadParam;
 
-__PACKAGE__->mk_accessors(qw/ headers filename size type /);
+__PACKAGE__->mk_item_accessors( qw( headers filename size type ) );
 
 sub new {
     my $class = shift;
@@ -24,11 +24,9 @@ sub new {
 }
 
 sub _param {
-    my $self = shift;
+    my ( $self, $param ) = @_;
 
-    if (@_) {
-        my $param = shift;
-
+    if ( @_ > 1 ) {
         $param = HTML::FormFu::UploadParam->new( { param => $param, } );
 
         $param->form( $self->form );
@@ -45,7 +43,7 @@ __END__
 
 =head1 NAME
 
-HTML::FormFu::Upload
+HTML::FormFu::Upload - uploaded file
 
 =head1 DESCRIPTION
 
@@ -82,7 +80,7 @@ See L<HTML::FormFu/populate> for details.
 
 =head1 SEE ALSO
 
-L<HTML::FormFu::FormFu>
+L<HTML::FormFu>
 
 =head1 AUTHOR
 

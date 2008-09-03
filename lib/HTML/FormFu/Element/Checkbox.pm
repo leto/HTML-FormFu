@@ -4,26 +4,23 @@ use strict;
 use base 'HTML::FormFu::Element::_Input';
 use Class::C3;
 
-__PACKAGE__->mk_output_accessors(qw/ default /);
+use HTML::FormFu::Constants qw( $EMPTY_STR );
 
-use HTML::FormFu::Util qw(
-    append_xml_attribute
-    has_xml_attribute
-    remove_xml_attribute
-    xml_escape
-);
+__PACKAGE__->mk_output_accessors( qw( default ) );
 
 sub new {
     my $self = shift->next::method(@_);
 
-    $self->field_type('checkbox');
-    $self->reverse_multi(1);
+    $self->field_type   ( 'checkbox' );
+    $self->reverse_multi( 1 );
 
     return $self;
 }
 
 sub process_value {
     my ( $self, $input ) = @_;
+
+    # ignore submitted input
 
     return $self->value;
 }
@@ -35,6 +32,7 @@ sub prepare_attrs {
     my $submitted = $form->submitted;
     my $default   = $self->default;
     my $original  = $self->value;
+    
     my $value
         = defined $self->name
         ? $self->get_nested_hash_value( $form->input, $self->nested_name )
@@ -49,7 +47,7 @@ sub prepare_attrs {
     }
     elsif ($submitted
         && $self->retain_default
-        && ( !defined $value || $value eq "" ) )
+        && ( !defined $value || $value eq $EMPTY_STR ) )
     {
         $render->{attributes}{checked} = 'checked';
     }
@@ -98,7 +96,7 @@ L<HTML::FormFu::Element::_Input>,
 L<HTML::FormFu::Element::_Field>, 
 L<HTML::FormFu::Element>
 
-L<HTML::FormFu::FormFu>
+L<HTML::FormFu>
 
 =head1 AUTHOR
 

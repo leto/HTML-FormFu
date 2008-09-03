@@ -1,57 +1,19 @@
 package HTML::FormFu::Element::Radio;
 
 use strict;
-use base 'HTML::FormFu::Element::_Input';
+use base 'HTML::FormFu::Element::Checkbox';
 use Class::C3;
 
-__PACKAGE__->mk_output_accessors(qw/ default /);
+use HTML::FormFu::Constants qw( $EMPTY_STR );
+
+__PACKAGE__->mk_output_accessors( qw( default ) );
 
 sub new {
     my $self = shift->next::method(@_);
 
     $self->field_type('radio');
-    $self->reverse_multi(1);
 
     return $self;
-}
-
-sub process_value {
-    my ( $self, $value ) = @_;
-
-    return $self->value;
-}
-
-sub prepare_attrs {
-    my ( $self, $render ) = @_;
-
-    my $form      = $self->form;
-    my $submitted = $form->submitted;
-    my $default   = $self->default;
-    my $original  = $self->value;
-    my $value
-        = defined $self->name
-        ? $self->get_nested_hash_value( $form->input, $self->nested_name )
-        : undef;
-
-    if ( $submitted && defined $value && $value eq $original ) {
-        $render->{attributes}{checked} = 'checked';
-    }
-    elsif ($submitted
-        && $self->retain_default
-        && ( !defined $value || $value eq "" ) )
-    {
-        $render->{attributes}{checked} = 'checked';
-    }
-    elsif ($submitted) {
-        delete $render->{attributes}{checked};
-    }
-    elsif ( defined $default && $default eq $original ) {
-        $render->{attributes}{checked} = 'checked';
-    }
-
-    $self->next::method($render);
-
-    return;
 }
 
 1;
@@ -78,12 +40,13 @@ Overrides the default value, so it's C<true>.
 
 =head1 SEE ALSO
 
-Is a sub-class of, and inherits methods from 
+Is a sub-class of, and inherits methods from
+L<HTML::FormFu::Element::Checkbox>, 
 L<HTML::FormFu::Element::_Input>, 
 L<HTML::FormFu::Element::_Field>, 
 L<HTML::FormFu::Element>
 
-L<HTML::FormFu::FormFu>
+L<HTML::FormFu>
 
 =head1 AUTHOR
 

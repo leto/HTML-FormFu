@@ -5,7 +5,9 @@ use base 'HTML::FormFu::Constraint';
 
 use Regexp::Common;
 
-__PACKAGE__->mk_accessors(qw/ regex common /);
+__PACKAGE__->mk_item_accessors( qw( regex ) );
+
+__PACKAGE__->mk_accessors( qw( common ) );
 
 sub constrain_value {
     my ( $self, $value ) = @_;
@@ -13,11 +15,13 @@ sub constrain_value {
     return 1 if !defined $value || $value eq '';
 
     my $regex;
+    
     if ( defined $self->regex ) {
         $regex = $self->regex;
     }
     elsif ( defined $self->common ) {
-        my @common = ref $self->common ? @{ $self->common } : ( $self->common );
+        my @common = ref $self->common ? @{ $self->common }
+                   :                     $self->common;
 
         $regex = shift @common;
         $regex = $RE{$regex};
@@ -74,7 +78,7 @@ C<< $RE{URI}{HTTP}{-scheme => 'https?'} >>
 
 Is a sub-class of, and inherits methods from L<HTML::FormFu::Constraint>
 
-L<HTML::FormFu::FormFu>
+L<HTML::FormFu>
 
 =head1 AUTHOR
 

@@ -4,9 +4,9 @@ use strict;
 use base 'HTML::FormFu::Element';
 use Class::C3;
 
-use HTML::FormFu::Util qw/ process_attrs /;
+use HTML::FormFu::Util qw( process_attrs );
 
-__PACKAGE__->mk_accessors(qw/ tag /);
+__PACKAGE__->mk_item_accessors( qw( tag ) );
 
 sub new {
     my $self = shift->next::method(@_);
@@ -17,11 +17,12 @@ sub new {
 }
 
 sub render_data_non_recursive {
-    my $self = shift;
+    my ( $self, $args ) = @_;
 
     my $render = $self->next::method( {
-            tag => $self->tag,
-            @_ ? %{ $_[0] } : () } );
+        tag => $self->tag,
+        $args ? %$args : (),
+    } );
 
     return $render;
 }
@@ -31,16 +32,16 @@ sub string {
 
     $args ||= {};
 
-    my $render
-        = exists $args->{render_data}
-        ? $args->{render_data}
-        : $self->render_data;
+    my $render = exists $args->{render_data} ? $args->{render_data}
+               :                               $self->render_data
+               ;
 
     # non_block template
 
     my $html = sprintf "<%s%s />",
         $render->{tag},
-        process_attrs( $render->{attributes} );
+        process_attrs( $render->{attributes} ),
+        ;
 
     return $html;
 }
@@ -51,7 +52,7 @@ __END__
 
 =head1 NAME
 
-HTML::FormFu::Element::_NonBlock
+HTML::FormFu::Element::_NonBlock - base class for single-tag elements
 
 =head1 DESCRIPTION
 
@@ -65,7 +66,7 @@ Base class for single-tag elements.
 
 Is a sub-class of, and inherits methods from L<HTML::FormFu::Element>
 
-L<HTML::FormFu::FormFu>
+L<HTML::FormFu>
 
 =head1 AUTHOR
 

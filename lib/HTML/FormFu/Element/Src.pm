@@ -18,7 +18,7 @@ __END__
 
 =head1 NAME
 
-HTML::FormFu::Element::Src
+HTML::FormFu::Element::Src - custom HTML element
 
 =head1 DESCRIPTION
 
@@ -31,7 +31,7 @@ Is a sub-class of, and inherits methods from
 L<HTML::FormFu::Element::Block>, 
 L<HTML::FormFu::Element>
 
-L<HTML::FormFu::FormFu>
+L<HTML::FormFu>
 
 =head1 AUTHOR
 

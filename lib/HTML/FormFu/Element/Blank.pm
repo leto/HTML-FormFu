@@ -3,20 +3,22 @@ package HTML::FormFu::Element::Blank;
 use strict;
 use base 'HTML::FormFu::Element::_Input';
 
+use HTML::FormFu::Constants qw( $EMPTY_STR );
+
 sub label_tag {
-    return "";
+    return $EMPTY_STR;
 }
 
 sub field_tag {
-    return "";
+    return $EMPTY_STR;
 }
 
 sub render {
-    return "";
+    return $EMPTY_STR;
 }
 
 sub render_data_non_recursive {
-    return ();
+    return;
 }
 
 1;
@@ -34,7 +36,7 @@ L<HTML::FormFu::Element::_Input>,
 L<HTML::FormFu::Element::_Field>, 
 L<HTML::FormFu::Element>
 
-L<HTML::FormFu::FormFu>
+L<HTML::FormFu>
 
 =head1 AUTHOR
 

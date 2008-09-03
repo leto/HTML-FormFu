@@ -3,11 +3,11 @@ package HTML::FormFu::OutputProcessor;
 use strict;
 use Class::C3;
 
-use HTML::FormFu::Attribute qw( mk_accessors );
+use HTML::FormFu::Attribute qw( mk_item_accessors mk_accessors );
 use HTML::FormFu::ObjectUtil qw( populate form parent );
-use Carp qw/ croak /;
+use Carp qw( croak );
 
-__PACKAGE__->mk_accessors(qw/ type /);
+__PACKAGE__->mk_item_accessors( qw( type ) );
 
 sub new {
     my $class = shift;
@@ -18,7 +18,7 @@ sub new {
 
     my $self = bless {}, $class;
 
-    for (qw/ type /) {
+    for (qw( type )) {
         croak "$_ attribute required" if !exists $attrs{$_};
     }
 
