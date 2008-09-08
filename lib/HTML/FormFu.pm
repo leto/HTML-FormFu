@@ -107,7 +107,7 @@ __PACKAGE__->mk_inherited_merging_accessors( qw( tt_args config_callback ) );
 *plugins           = \&plugin;
 *add_plugins       = \&add_plugin;
 
-our $VERSION = '0.03004';
+our $VERSION = '0.03005';
 $VERSION = eval $VERSION;
 
 Class::C3::initialize();
@@ -3043,6 +3043,10 @@ C<vertically-aligned-ie.css>.
 
 =head1 SUPPORT
 
+Website:
+
+L<http://www.formfu.org>
+
 Project Page:
 
 L<http://code.google.com/p/html-formfu/>
@@ -3054,6 +3058,10 @@ L<http://lists.scsys.co.uk/cgi-bin/mailman/listinfo/html-formfu>
 Mailing list archives:
 
 L<http://lists.scsys.co.uk/pipermail/html-formfu/>
+
+IRC:
+
+C<irc.perl.org>, channel C<#formfu>
 
 The L<HTML::Widget archives|http://lists.scsys.co.uk/pipermail/html-widget/> 
 between January and May 2007 also contain discussion regarding HTML::FormFu.
