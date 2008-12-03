@@ -3,7 +3,7 @@ package HTML::FormFu::Constraint::MinLength;
 use strict;
 use base 'HTML::FormFu::Constraint::Length';
 
-sub localize_args {
+sub _localize_args {
     my ($self) = @_;
 
     return $self->min;

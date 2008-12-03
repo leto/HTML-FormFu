@@ -91,6 +91,7 @@ __PACKAGE__->mk_inherited_accessors( qw(
     auto_validator_class        auto_transformer_class
     render_method               render_processed_value
     force_errors                repeatable_count
+    config_file_path
 ) );
 
 __PACKAGE__->mk_inherited_merging_accessors( qw( tt_args config_callback ) );
@@ -107,7 +108,7 @@ __PACKAGE__->mk_inherited_merging_accessors( qw( tt_args config_callback ) );
 *plugins           = \&plugin;
 *add_plugins       = \&add_plugin;
 
-our $VERSION = '0.03005';
+our $VERSION = '0.03006';
 $VERSION = eval $VERSION;
 
 Class::C3::initialize();
@@ -581,9 +582,7 @@ sub _transform_input {
 
         my $value = $self->get_nested_hash_value( $params, $name );
 
-        my @errors;
-
-        ( $value, @errors ) = eval { $transformer->process( $value, $params ) };
+        my ( @errors ) = eval { $transformer->process( $value, $params ) };
 
         if ( blessed $@ && $@->isa('HTML::FormFu::Exception::Transformer') ) {
             push @errors, $@;
@@ -598,8 +597,6 @@ sub _transform_input {
 
             $error->parent->add_error($error);
         }
-
-        $self->set_nested_hash_value( $params, $name, $value );
     }
 
     return;
@@ -1344,13 +1341,8 @@ C<elements>, regardless of it's position in the file).
     ---
     load_config_file: ext.yml
     
-Like perl's C<open> function, relative-paths are resolved from the current 
-working directory.
-
-If you're using the C<FormConfig> action controller in 
-L<Catalyst::Controller::HTML::FormFu>, see 
-L<config_file_path|Catalyst::Controller::HTML::FormFu/config_file_path>. 
-
+Relative paths are resolved from the L</config_file_path> directory if
+it is set, otherwise from the current working directory.
 
 See L</BEST PRACTICES> for advice on organising config files.
 
@@ -1411,6 +1403,22 @@ passed to the field's L<default method|HTML::FormFu::_Field/default>.
 This should be called after all fields have been added to the form, and 
 before L</process> is called (otherwise, call L</process> again before 
 rendering the form).
+
+=head2 config_file_path
+
+Arguments: $directory_name
+
+L</config_file_path> defines where configuration files will be
+searched for, if an absolute path is not given to
+L</load_config_file>.
+
+Default Value: not defined
+
+This method is a special 'inherited accessor', which means it can be set on 
+the form, a block element or a single element. When the value is read, if 
+no value is defined it automatically traverses the element's hierarchy of 
+parents, through any block elements and up to the form, searching for a 
+defined value.
 
 =head2 indicator
 
@@ -2218,11 +2226,17 @@ already.
 The following character substitution will be performed: C<%f> will be 
 replaced by L<< $form->id|/id >>, C<%n> will be replaced by 
 L<< $field->name|HTML::FormFu::Element/name >>, C<%t> will be replaced by 
-L<< lc( $field->type )|HTML::FormFu::Element/type >>.
+L<< lc( $field->type )|HTML::FormFu::Element/type >>, C<%s> will be replaced
+by L<< $error->stage >>.
 
 The generated string will be passed to L</localize> to create the message.
 
-Default Value: 'form_%t_error'
+For example, a L<Required constraint|HTML::FormFu::Constraint::Required>
+will return the string C<form_constraint_required>. Under the default
+localization behaviour, the appropriate message for
+C<form_constraint_required> will be used from the default I18N package.
+
+Default Value: 'form_%s_%t'
 
 This method is a special 'inherited accessor', which means it can be set on 
 the form, a block element or a single element. When the value is read, if 
@@ -3072,6 +3086,13 @@ Please submit bugs / feature requests to
 L<http://code.google.com/p/html-formfu/issues/list> (preferred) or 
 L<http://rt.perl.org>.
 
+=head1 PATCHES
+
+To help patches be applied quickly, please send them to the mailing list; 
+attached, rather than inline; against subversion, rather than a cpan version
+(run C<< svn diff > patchfile >>); mention which svn version it's against.
+Mailing list messages are limited to 256KB, so gzip the patch if necessary.
+
 =head1 SUBVERSION REPOSITORY
 
 The publicly viewable subversion code repository is at 
@@ -3105,6 +3126,8 @@ Carl Franks
 Brian Cassidy
 
 Ruben Fonseca
+
+Ronald Kimball
 
 Daisuke Maki
 

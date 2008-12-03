@@ -3,7 +3,9 @@ abstract: 'HTML Form Creation, Rendering and Validation Framework'
 author:
   - 'Carl Franks'
 build_requires:
+  CGI: 0
   ExtUtils::MakeMaker: 6.11
+  Test::Aggregate: 0.35
   Test::NoWarnings: 0
 distribution_type: module
 generated_by: 'Module::Install version 0.77'
@@ -53,4 +55,4 @@ requires:
   perl: 5.8.1
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.03005
+version: 0.03006

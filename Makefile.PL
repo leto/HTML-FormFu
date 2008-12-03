@@ -39,9 +39,11 @@ requires 'Template'; # form->start and ->end still require TT
                      # so does t/elements/render_method
 requires 'YAML::Syck' => '1.05';
 
+test_requires 'CGI'; # for file POST tests
+test_requires 'Test::Aggregate' => 0.35;
 test_requires 'Test::NoWarnings';
 
-tests 't/*.t t/*/*.t';
+tests_recursive;
 
 no_index directory => 'examples';
 
@@ -49,5 +51,4 @@ install_script('bin/html_formfu_deploy.pl');
 install_script('bin/html_formfu_dumpconf.pl');
 install_share();
 
-auto_install();
 &WriteAll;

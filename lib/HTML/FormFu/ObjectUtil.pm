@@ -10,6 +10,7 @@ use HTML::FormFu::Util qw(
 );
 use Config::Any;
 use Data::Visitor::Callback;
+use File::Spec;
 use Scalar::Util qw( refaddr weaken blessed );
 use List::MoreUtils qw( none uniq );
 use Storable qw( dclone );
@@ -470,6 +471,15 @@ sub _load_config {
     my $config_any_method = $use_stems ? 'load_stems' : 'load_files';
 
     for my $file (@filenames) {
+        my $config_file_path = $self->config_file_path;
+        
+        if ( defined $config_file_path
+             && !File::Spec->file_name_is_absolute($file)
+            )
+        {
+            $file = File::Spec->catfile( $config_file_path, $file );
+        }
+        
         my $config = Config::Any->$config_any_method( {
             $config_any_arg => [$file],
             use_ext         => 1,
@@ -711,7 +721,10 @@ sub set_nested_hash_value {
 #
 #    my ( $root, @names ) = split_name($name);
 #
-#    return if !@names;
+#    if ( !@names ) {
+#        delete $param->{$root};
+#        return;
+#    }
 #
 #    my $ref = \$param->{$root};
 #
