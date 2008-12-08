@@ -607,7 +607,6 @@ t-aggregated/validator.t
 t/01use.t
 t/04basic.t
 t/04basic.yml
-t/aggregate.t
 t/bugs/yaml_utf8.t
 t/bugs/yaml_utf8.txt
 t/bugs/yaml_utf8.yml
