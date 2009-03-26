@@ -3,7 +3,7 @@ package HTML::FormFu::Constraint::CallbackOnce;
 use strict;
 use base 'HTML::FormFu::Constraint';
 
-__PACKAGE__->mk_item_accessors( qw( callback ) );
+__PACKAGE__->mk_item_accessors(qw( callback ));
 
 sub process {
     my ( $self, $params ) = @_;
@@ -14,6 +14,8 @@ sub process {
     my $value = $self->get_nested_hash_value( $params, $self->nested_name );
 
     my $callback = $self->callback || sub {1};
+
+    no strict 'refs';
 
     my $ok = eval { $callback->( $value, $params ) };
 

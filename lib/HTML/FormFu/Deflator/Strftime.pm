@@ -3,12 +3,18 @@ package HTML::FormFu::Deflator::Strftime;
 use strict;
 use base 'HTML::FormFu::Deflator';
 
-__PACKAGE__->mk_item_accessors( qw( strftime ) );
+__PACKAGE__->mk_item_accessors(qw( strftime ));
 
 sub deflator {
     my ( $self, $value ) = @_;
 
     my $return;
+
+    eval {
+        my $locale = $self->locale;
+
+        $value->set_locale($locale) if defined $locale;
+    };
 
     eval { $return = $value->strftime( $self->strftime ) };
 
@@ -56,6 +62,8 @@ more suitable and user-friendly format.
 This deflator calls L<DateTime>'s C<strftime> method. Possible values for
 the format string are documented at
 L<http://search.cpan.org/dist/DateTime/lib/DateTime.pm#strftime_Patterns>.
+
+If you set the form's locale (see L<HTML::FormFu/locale>) this is set on the DateTime object. Now you can use C<%x> to get the default date or C<%X> for the default time for the object's locale.
 
 =head1 AUTHOR
 

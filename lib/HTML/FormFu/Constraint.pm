@@ -5,11 +5,16 @@ use base 'HTML::FormFu::Processor';
 use Class::C3;
 
 use HTML::FormFu::Exception::Constraint;
+use HTML::FormFu::Util qw(
+    DEBUG_CONSTRAINTS
+    debug
+);
 use List::MoreUtils qw( any );
 use Scalar::Util qw( blessed );
+use Storable qw( dclone );
 use Carp qw( croak );
 
-__PACKAGE__->mk_item_accessors( qw( not force_errors when ) );
+__PACKAGE__->mk_item_accessors(qw( not force_errors when ));
 
 sub process {
     my ( $self, $params ) = @_;
@@ -19,11 +24,14 @@ sub process {
     my @errors;
 
     # check when condition
-    return if !$self->_process_when($params);
+    if ( !$self->_process_when($params) ) {
+        DEBUG_CONSTRAINTS && debug('fail when() check - skipping constraint');
+        return;
+    }
 
     if ( ref $value eq 'ARRAY' ) {
         push @errors, eval { $self->constrain_values( $value, $params ) };
-        
+
         if ($@) {
             push @errors,
                 $self->mk_errors( {
@@ -34,6 +42,10 @@ sub process {
     }
     else {
         my $ok = eval { $self->constrain_value( $value, $params ) };
+
+        DEBUG_CONSTRAINTS && debug( 'CONSTRAINT RETURN VALUE' => $ok );
+        DEBUG_CONSTRAINTS && debug( '$@' => $@ );
+
         push @errors,
             $self->mk_errors( {
                 pass => ( $@ || !$ok ) ? 0 : 1,
@@ -51,6 +63,9 @@ sub constrain_values {
 
     for my $value (@$values) {
         my $ok = eval { $self->constrain_value( $value, $params ) };
+
+        DEBUG_CONSTRAINTS && debug( 'CONSTRAINT RETURN VALUE' => $ok );
+        DEBUG_CONSTRAINTS && debug( '$@' => $@ );
 
         push @errors,
             $self->mk_errors( {
@@ -127,29 +142,41 @@ sub _process_when {
     my $when_field_value = $self->get_nested_hash_value( $params, $when_field );
     return 0 if !defined $when_field_value;
 
-    # a compare value must be defined
     my @values;
-    my $compare_value = $when->{value};
-    
-    if ( defined $compare_value ) {
-        push @values, $compare_value;
-    }
-    
-    my $compare_values = $when->{values};
-    
-    if ( ref $compare_values eq 'ARRAY' ) {
-        push @values, @$compare_values;
-    }
-    
-    croak "Parameter 'value' or 'values' are not defined" if !@values;
 
-    # determine if condition is fullfilled
-    my $fullfilled = any { $when_field_value eq $_ } @values;
+    if ( defined( my $value = $when->{value} ) ) {
+        push @values, $value;
+    }
+    elsif ( defined( my $values = $when->{values} ) ) {
+        push @values, @$values;
+    }
+
+    # determine if condition is fulfilled
+    my $ok;
+
+    if (@values) {
+        $ok = any { $when_field_value eq $_ } @values;
+    }
+    else {
+        $ok = $when_field_value ? 1 : 0;
+    }
 
     # invert when condition if asked for
-    $fullfilled = $when->{not} ? !$fullfilled : $fullfilled;
+    $ok = $when->{not} ? !$ok : $ok;
 
-    return $fullfilled;
+    return $ok;
+}
+
+sub clone {
+    my $self = shift;
+
+    my $clone = $self->next::method(@_);
+
+    if ( defined( my $when = $self->when ) ) {
+        $clone->when( dclone $when );
+    }
+
+    return $clone;
 }
 
 1;
@@ -163,7 +190,7 @@ HTML::FormFu::Constraint - Constrain User Input
 =head1 SYNOPSIS
 
     ---
-    elements: 
+    elements:
       - type: Text
         name: foo
         constraints:
@@ -174,10 +201,10 @@ HTML::FormFu::Constraint - Constrain User Input
               values: [ 1, 3, 5 ]
       - type: Text
         name: bar
-        constraints: 
+        constraints:
           - Integer
           - Required
-    constraints: 
+    constraints:
       - SingleValue
 
 =head1 DESCRIPTION
@@ -186,29 +213,29 @@ User input is processed in the following order:
 
 =over
 
-=item L<Filters|HTML::FormFu::Filter|HTML::FormFu::Filter>
+=item L<Filters|HTML::FormFu::Filter>
 
-=item L<Constraints|HTML::FormFu::Constraint|HTML::FormFu::Constraint>
+=item L<Constraints|HTML::FormFu::Constraint>
 
-=item L<Inflators|HTML::FormFu::Inflator|HTML::FormFu::Inflator>
+=item L<Inflators|HTML::FormFu::Inflator>
 
-=item L<Validators|HTML::FormFu::Validator|HTML::FormFu::Validator>
+=item L<Validators|HTML::FormFu::Validator>
 
-=item L<Transformers|HTML::FormFu::Transformer|HTML::FormFu::Transformer>
+=item L<Transformers|HTML::FormFu::Transformer>
 
 =back
 
 See L<HTML::FormFu/"FORM LOGIC AND VALIDATION"> for further details.
 
-L<HTML::FormFu/constraints> can be called on any L<form|HTML::FormFu>, 
-L<block element|HTML::FormFu::Element::Block> (includes fieldsets) or 
+L<HTML::FormFu/constraints> can be called on any L<form|HTML::FormFu>,
+L<block element|HTML::FormFu::Element::Block> (includes fieldsets) or
 L<field element|HTML::FormFu::Element::_Field>.
 
 If called on a field element, no C<name> argument should be passed.
 
-If called on a L<form|HTML::FormFu> or 
-L<block element|HTML::FormFu::Element::Block>, if no C<name> argument is 
-provided, a new constraint is created for and added to every field on that 
+If called on a L<form|HTML::FormFu> or
+L<block element|HTML::FormFu::Element::Block>, if no C<name> argument is
+provided, a new constraint is created for and added to every field on that
 form or block.
 
 See L<HTML::FormFu/"FORM LOGIC AND VALIDATION"> for further details.
@@ -221,10 +248,10 @@ Returns the C<type> argument originally used to create the constraint.
 
 =head2 not
 
-If true, inverts the results of the constraint - such that input that would 
+If true, inverts the results of the constraint - such that input that would
 otherwise fail will pass, and vise-versa.
 
-This value is ignored by some constraints - see the documentation for 
+This value is ignored by some constraints - see the documentation for
 individual constraints for details.
 
 =head2 message
@@ -243,12 +270,12 @@ Variant of L</message> which ensures the value won't be XML-escaped.
 
 Arguments: $string
 
-Variant of L</message> which uses L<localize|HTML::FormFu/localize> to 
+Variant of L</message> which uses L<localize|HTML::FormFu/localize> to
 create the message.
 
 =head2 localise_args
 
-Provide arguments that should be passed to L<localize|HTML::FormFu/localize> 
+Provide arguments that should be passed to L<localize|HTML::FormFu/localize>
 to replace C<[_1]>, C<[_2]>, etc. in the localized string.
 
 =head2 force_errors
@@ -257,12 +284,12 @@ See L<HTML::FormFu/force_errors> for details.
 
 =head2 parent
 
-Returns the L<field|HTML::FormFu::Element::_Field> object that the constraint 
+Returns the L<field|HTML::FormFu::Element::_Field> object that the constraint
 is associated with.
 
 =head2 form
 
-Returns the L<HTML::FormFu> object that the constraint's field is attached 
+Returns the L<HTML::FormFu> object that the constraint's field is attached
 to.
 
 =head2 name
@@ -274,15 +301,42 @@ Shorthand for C<< $constraint->parent->name >>
 Defines a condition for the constraint. Only when the condition is fullfilled
 the constraint will be applied.
 
-This method expects a hashref with the following keys:
-  field: name of form field that shall be compared
-  value: expected value in the form field 'field'
-  values: Array of multiple values, one must match to fullfill the condition
-  not: inverse the when condition - value(s) must not match
-  callback: a callback can be supplied to perform complex checks. An hashref
-    of all parameters is passed to the callback sub. In this case all other
-    keys are ignored, including not. You need to return a true value for
-    the constraint to be applied or a false value to not apply it.
+This method expects a hashref.
+
+The C<field> or C<callback> must be supplied, all other fields are optional.
+
+If C<value> or C<values> is not supplied, the constraint will pass if the
+named field's value is true.
+
+The following keys are supported:
+
+=over
+
+=item field
+
+nested-name of form field that shall be checked against
+
+=item value
+
+Expected value in the form field 'field'
+
+=item values
+
+Array of multiple values, one must match to fullfill the condition
+
+=item not
+
+Inverts the when condition - value(s) must not match
+
+=item callback
+
+A callback subroutine-reference or fully resolved subroutine name can be
+supplied to perform complex checks. An hashref of all parameters is passed
+to the callback sub. In this case all other keys are ignored, including not.
+You need to return a true value for the constraint to be applied or a false
+value to not apply it.
+
+=back
 
 =head1 CORE CONSTRAINTS
 
@@ -356,7 +410,7 @@ This method expects a hashref with the following keys:
 
 Carl Franks, C<cfranks@cpan.org>
 
-Based on the original source code of L<HTML::Widget::Constraint>, by 
+Based on the original source code of L<HTML::Widget::Constraint>, by
 Sebastian Riedel, C<sri@oook.de>.
 
 =head1 LICENSE

@@ -3,11 +3,13 @@ package HTML::FormFu::Deflator;
 use strict;
 use Class::C3;
 
-use HTML::FormFu::Attribute qw( mk_item_accessors mk_accessors );
+use HTML::FormFu::Attribute qw( mk_item_accessors mk_accessors mk_inherited_accessors );
 use HTML::FormFu::ObjectUtil qw( populate form name parent );
 use Carp qw( croak );
 
-__PACKAGE__->mk_item_accessors( qw( type ) );
+__PACKAGE__->mk_item_accessors(qw( type ));
+
+__PACKAGE__->mk_inherited_accessors(qw( locale ));
 
 sub new {
     my $class = shift;
@@ -79,6 +81,10 @@ Arguments: $form_result, \%params
 =item L<HTML::FormFu::Deflator::CompoundDateTime>
 
 =item L<HTML::FormFu::Deflator::CompoundSplit>
+
+=item L<HTML::FormFu::Deflator::FormatNumber>
+
+=item L<HTML::FormFu::Deflator::PathClassFile>
 
 =item L<HTML::FormFu::Deflator::Strftime>
 

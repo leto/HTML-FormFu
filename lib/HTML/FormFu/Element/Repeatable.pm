@@ -2,22 +2,24 @@ package HTML::FormFu::Element::Repeatable;
 
 use strict;
 use base 'HTML::FormFu::Element::Block';
+
+use HTML::FormFu::Util qw( DEBUG_PROCESS debug );
 use Class::C3;
 use List::Util qw( first );
 use Carp qw( croak );
 
 __PACKAGE__->mk_item_accessors( qw(
-    _original_elements
-    increment_field_names
-    counter_name
+        _original_elements
+        increment_field_names
+        counter_name
 ) );
 
 sub new {
     my $self = shift->next::method(@_);
 
-    $self->filename             ( 'repeatable' );
-    $self->is_repeatable        ( 1 );
-    $self->increment_field_names( 1 );
+    $self->filename('repeatable');
+    $self->is_repeatable(1);
+    $self->increment_field_names(1);
 
     return $self;
 }
@@ -33,12 +35,13 @@ sub repeat {
     my $children;
 
     if ( $self->_original_elements ) {
+
         # repeat() has already been called
         $children = $self->_original_elements;
     }
     else {
         $children = $self->_elements;
-        
+
         $self->_original_elements($children);
     }
 
@@ -53,9 +56,9 @@ sub repeat {
         my @clones = map { $_->clone } @$children;
         my $block = $self->element('Block');
 
-        $block->_elements ( \@clones );
+        $block->_elements( \@clones );
         $block->attributes( $self->attributes );
-        $block->tag       ( $self->tag );
+        $block->tag( $self->tag );
 
         $block->repeatable_count($rep);
 
@@ -65,7 +68,9 @@ sub repeat {
                 if ( defined( my $name = $field->name ) ) {
                     $field->original_name($name);
 
-                    $field->name( "${name}_$rep" );
+                    $field->original_nested_name( $field->nested_name );
+
+                    $field->name("${name}_$rep");
                 }
             }
         }
@@ -79,17 +84,18 @@ sub repeat {
                 @{ $field->_constraints },
                 @{ $field->_inflators },
                 @{ $field->_validators },
-                @{ $field->_transformers }
+                @{ $field->_transformers },
+                @{ $field->_plugins },
                 ;
         }
 
         my $block_fields = $block->get_fields;
 
-        my @others_constraints
-            = grep { $_->can('others') }
-              map { @{ $_->_constraints } }
-                @$block_fields
-                ;
+        my @block_constraints = map { @{ $_->get_constraints } } @$block_fields;
+
+        # rename any 'others' fields
+        my @others_constraints = grep { defined $_->others }
+            grep { $_->can('others') } @block_constraints;
 
         for my $constraint (@others_constraints) {
             my $others = $constraint->others;
@@ -100,7 +106,9 @@ sub repeat {
 
             for my $name (@$others) {
                 my $field
-                    = first { $_->original_name eq $name } @$block_fields;
+                    = ( first { $_->original_nested_name eq $name }
+                    @$block_fields )
+                    || first { $_->original_name eq $name } @$block_fields;
 
                 if ( defined $field ) {
                     push @new_others, $field->nested_name;
@@ -111,6 +119,21 @@ sub repeat {
             }
 
             $constraint->others( \@new_others );
+        }
+
+        # rename any 'when' fields
+        my @when_constraints = grep { defined $_->when } @block_constraints;
+
+        for my $constraint (@when_constraints) {
+            my $when = $constraint->when;
+            my $name = $when->{field};
+
+            my $field
+                = first { $_->original_nested_name eq $name } @$block_fields;
+
+            if ( defined $field ) {
+                $when->{field} = $field->nested_name;
+            }
         }
 
         push @return, $block;
@@ -147,6 +170,8 @@ sub process {
     }
 
     if ( !$self->_original_elements ) {
+        DEBUG_PROCESS && debug("calling \$repeatable->count($count)");
+
         $self->repeat($count);
     }
 
@@ -194,6 +219,7 @@ HTML::FormFu::Element::Repeatable - repeatable block element
     ---
     elements:
       - type: Repeatable
+        name: my_rep
         elements:
           - name: foo
           - name: bar
@@ -201,13 +227,33 @@ HTML::FormFu::Element::Repeatable - repeatable block element
 Calling C<< $element->repeat(2) >> would result in the following markup:
 
     <div>
-        <input name="foo" type="text" />
-        <input name="bar" type="text" />
+        <input name="my_rep.foo_1" type="text" />
+        <input name="my_rep.bar_1" type="text" />
     </div>
     <div>
-        <input name="foo" type="text" />
-        <input name="bar" type="text" />
+        <input name="myrep.foo_2" type="text" />
+        <input name="myrep.bar_2" type="text" />
     </div>
+
+Example of constraints:
+
+    ----
+    elements:
+      - type: Repeatable
+        name: my_rep
+        elements:
+          - name: id
+          
+          - name: foo
+            constraints:
+              - type: Required
+                when:
+                  field: 'my_rep.id' # use full nested-name
+          
+          - name: bar
+            constraints:
+              - type: Equal
+                others: 'my_rep.foo' # use full nested-name
 
 =head1 DESCRIPTION
 
@@ -222,6 +268,13 @@ around all the repeated elements - instead it places each repeat of the
 elements in a new L<Block|HTML::FormFu::Element::Block> element, which 
 inherits the Repeatable's display settings, such as L</attributes> and 
 L</tag>.
+
+For all constraints attached to fields within a Repeatable block which use
+either L<others|HTML::FormFu::Constraint::_others/others> or
+L<when|HTML::FormFu::Constraint/when> containing names of fields within
+the same Repeatable block, when L<repeat> is called, those names will
+automatically be updated to the new nested-name for each field (taking
+into account L<increment_field_names>).
 
 =head1 METHODS
 
@@ -270,29 +323,8 @@ Arguments: $bool
 
 Default Value: 1
 
-If true, then any copies of fields whose name contains a C<0>, will have 
-the C<0> replaced by it's L</repeatable_count> value.
-
-    ---
-    elements:
-      - type: Repeatable
-        increment_field_names: 1
-        elements:
-          - name: foo_0
-          - name: bar_0
-
-Calling C<< $element->repeat(2) >> would result in the following markup:
-
-    <div>
-        <input name="foo_1" type="text" />
-        <input name="bar_1" type="text" />
-    </div>
-    <div>
-        <input name="foo_2" type="text" />
-        <input name="bar_2" type="text" />
-    </div>
-
-See also L</counter_name>.
+If true, then all fields will have C<< _n >> appended to their name, where
+C<n> is the L</repeatable_count> value.
 
 =head2 repeatable_count
 
@@ -311,6 +343,7 @@ Any attributes set will be passed to every repeated Block of elements.
     ---
     elements:
       - type: Repeatable
+        name: my_rep
         attributes: 
           class: rep
         elements:
@@ -319,10 +352,10 @@ Any attributes set will be passed to every repeated Block of elements.
 Calling C<< $element->repeat(2) >> would result in the following markup:
 
     <div class="rep">
-        <input name="foo" type="text" />
+        <input name="my_rep.foo_1" type="text" />
     </div>
     <div class="rep">
-        <input name="foo" type="text" />
+        <input name="my_rep.foo_2" type="text" />
     </div>
 
 See L<HTML::FormFu/attributes> for details.
@@ -334,6 +367,7 @@ The L</tag> value will be passed to every repeated Block of elements.
     ---
     elements:
       - type: Repeatable
+        name: my_rep
         tag: span
         elements:
           - name: foo
@@ -341,10 +375,10 @@ The L</tag> value will be passed to every repeated Block of elements.
 Calling C<< $element->repeat(2) >> would result in the following markup:
 
     <span>
-        <input name="foo" type="text" />
+        <input name="my_rep.foo_1" type="text" />
     </span>
     <span>
-        <input name="foo" type="text" />
+        <input name="my_rep.foo_2" type="text" />
     </span>
 
 See L<HTML::FormFu::Element::block/tag> for details.
@@ -359,6 +393,7 @@ See L<HTML::FormFu::Element::block/auto_id> for further details.
     ---
     elements:
       - type: Repeatable
+        name: my_rep
         auto_id: "%n_%r"
         elements:
           - name: foo
@@ -366,10 +401,10 @@ See L<HTML::FormFu::Element::block/auto_id> for further details.
 Calling C<< $element->repeat(2) >> would result in the following markup:
 
     <div>
-        <input name="foo" id="foo_1" type="text" />
+        <input name="my_rep.foo_1" id="foo_1" type="text" />
     </div>
     <div>
-        <input name="foo" id="foo_2" type="text" />
+        <input name="my_rep.foo_2" id="foo_2" type="text" />
     </div>
 
 =head2 content

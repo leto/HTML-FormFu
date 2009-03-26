@@ -22,9 +22,13 @@ use HTML::FormFu::ObjectUtil qw(
     clone                       stash
     constraints_from_dbic       parent
     get_nested_hash_value       set_nested_hash_value
-    nested_hash_key_exists
+    delete_nested_hash_key      nested_hash_key_exists
 );
 use HTML::FormFu::Util qw(
+    DEBUG
+    DEBUG_PROCESS
+    DEBUG_CONSTRAINTS
+    debug
     require_class               _get_elements
     xml_escape                  split_name
     _parse_args                 process_attrs
@@ -39,62 +43,62 @@ use Regexp::Copy;
 use Carp qw( croak );
 
 use overload (
-    'eq'       => sub { refaddr $_[0] eq refaddr $_[1] },
-    'ne'       => sub { refaddr $_[0] ne refaddr $_[1] },
-    '=='       => sub { refaddr $_[0] eq refaddr $_[1] },
-    '!='       => sub { refaddr $_[0] ne refaddr $_[1] },
-    '""'       => sub { return shift->render },
+    'eq' => sub { refaddr $_[0] eq refaddr $_[1] },
+    'ne' => sub { refaddr $_[0] ne refaddr $_[1] },
+    '==' => sub { refaddr $_[0] eq refaddr $_[1] },
+    '!=' => sub { refaddr $_[0] ne refaddr $_[1] },
+    '""' => sub { return shift->render },
     'bool'     => sub {1},
     'fallback' => 1,
 );
 
-__PACKAGE__->mk_attrs( qw( attributes ) );
+__PACKAGE__->mk_attrs(qw( attributes ));
 
-__PACKAGE__->mk_attr_accessors( qw( id action enctype method ) );
+__PACKAGE__->mk_attr_accessors(qw( id action enctype method ));
 
 __PACKAGE__->mk_item_accessors( qw(
-    indicator
-    filename
-    query_type
-    force_error_message
-    localize_class
-    query
-    input
-    _auto_fieldset
-    _elements
-    _processed_params
-    _output_processors
-    tt_module
-    nested_name
-    nested_subscript
-    default_model
-    tmp_upload_dir
-    params_ignore_underscore
-    _plugins
+        indicator
+        filename
+        query_type
+        force_error_message
+        localize_class
+        query
+        input
+        _auto_fieldset
+        _elements
+        _processed_params
+        _output_processors
+        tt_module
+        nested_name
+        nested_subscript
+        default_model
+        tmp_upload_dir
+        params_ignore_underscore
+        _plugins
 ) );
 
 __PACKAGE__->mk_accessors( qw(
-    javascript
-    javascript_src
-    languages
-    submitted
-    _valid_names
-    _models
+        javascript
+        javascript_src
+        languages
+        submitted
+        _valid_names
+        _models
 ) );
 
-__PACKAGE__->mk_output_accessors( qw( form_error_message ) );
+__PACKAGE__->mk_output_accessors(qw( form_error_message ));
 
 __PACKAGE__->mk_inherited_accessors( qw(
-    auto_id                     auto_label
-    auto_error_class            auto_error_message
-    auto_constraint_class       auto_inflator_class
-    auto_validator_class        auto_transformer_class
-    render_method               render_processed_value
-    force_errors                repeatable_count
-    config_file_path
+        auto_id                     auto_label
+        auto_error_class            auto_error_message
+        auto_constraint_class       auto_inflator_class
+        auto_validator_class        auto_transformer_class
+        render_method               render_processed_value
+        force_errors                repeatable_count
+        config_file_path            locale
 ) );
 
-__PACKAGE__->mk_inherited_merging_accessors( qw( tt_args config_callback ) );
+__PACKAGE__->mk_inherited_merging_accessors(qw( tt_args config_callback ));
 
 *elements          = \&element;
 *constraints       = \&constraint;
@@ -108,14 +112,14 @@ __PACKAGE__->mk_inherited_merging_accessors( qw( tt_args config_callback ) );
 *plugins           = \&plugin;
 *add_plugins       = \&add_plugin;
 
-our $VERSION = '0.03007';
+our $VERSION = '0.04000';
 $VERSION = eval $VERSION;
 
 Class::C3::initialize();
 
 sub new {
     my ( $class, $argument_ref ) = @_;
-    
+
     my %defaults = (
         _elements          => [],
         _output_processors => [],
@@ -139,13 +143,13 @@ sub new {
         auto_error_class   => 'error_%s_%t',
         auto_error_message => 'form_%s_%t',
     );
-    
+
     my $self = bless {}, $class;
 
     $self->populate( \%defaults );
 
     if ($argument_ref) {
-        $self->populate( $argument_ref );
+        $self->populate($argument_ref);
     }
 
     return $self;
@@ -165,7 +169,7 @@ sub auto_fieldset {
 
     $element_ref->{type} = 'Fieldset';
 
-    $self->element( $element_ref );
+    $self->element($element_ref);
 
     $self->_auto_fieldset(1);
 
@@ -198,9 +202,10 @@ sub model {
     }
 
     # class not found, try require-ing it
-    my $class = $model_name =~ s/^\+// ? $model_name
-              :                          "HTML::FormFu::Model::$model_name"
-              ;
+    my $class
+        = $model_name =~ s/^\+//
+        ? $model_name
+        : "HTML::FormFu::Model::$model_name";
 
     require_class($class);
 
@@ -247,10 +252,10 @@ sub save_to_model {
 sub process {
     my ( $self, $query ) = @_;
 
-    $self->input            ( {} );
+    $self->input(             {} );
     $self->_processed_params( {} );
-    $self->_valid_names     ( [] );
-    
+    $self->_valid_names( [] );
+
     $self->clear_errors;
 
     $query ||= $self->query;
@@ -261,18 +266,29 @@ sub process {
 
     # save it for further calls to process()
     if ($query) {
+        DEBUG && debug( QUERY => $query );
+
         $self->query($query);
     }
 
-    # run all plugins process() methods
-    my $plugins = $self->get_plugins;
-
-    for my $plugin (@$plugins) {
-        $plugin->process;
+    # run all elements pre_process() methods
+    for my $elem ( @{ $self->get_elements } ) {
+        $elem->pre_process;
     }
 
+    # run all plugins pre_process() methods
+    for my $plugin ( @{ $self->get_plugins } ) {
+        $plugin->pre_process;
+    }
+
+    # run all elements process() methods
     for my $elem ( @{ $self->get_elements } ) {
         $elem->process;
+    }
+
+    # run all plugins process() methods
+    for my $plugin ( @{ $self->get_plugins } ) {
+        $plugin->process;
     }
 
     my $submitted;
@@ -283,6 +299,8 @@ sub process {
 
         $submitted = $self->_submitted($query);
     }
+
+    DEBUG_PROCESS && debug( SUBMITTED => $submitted );
 
     $self->submitted($submitted);
 
@@ -297,25 +315,30 @@ sub process {
             next if none { $name eq $_ } @params;
 
             if ( $field->nested ) {
+
                 # call in list context so we know if there's more than 1 value
                 my @values = $query->param($name);
 
-                my $value = @values > 1 ? \@values
-                          :               $values[0]
-                          ;
+                my $value
+                    = @values > 1
+                    ? \@values
+                    : $values[0];
 
                 $self->set_nested_hash_value( \%input, $name, $value );
             }
             else {
                 my @values = $query->param($name);
 
-                $input{$name} = @values > 1 ? \@values
-                              :               $values[0]
-                              ;
+                $input{$name}
+                    = @values > 1
+                    ? \@values
+                    : $values[0];
             }
         }
 
-        # run all field-plugins process_input methods
+        DEBUG && debug( INPUT => \%input );
+
+        # run all field process_input methods
         for my $field ( @{ $self->get_fields } ) {
             $field->process_input( \%input );
         }
@@ -330,7 +353,7 @@ sub process {
         $elem->post_process;
     }
 
-    for my $plugin (@$plugins) {
+    for my $plugin ( @{ $self->get_plugins } ) {
         $plugin->post_process;
     }
 
@@ -344,14 +367,16 @@ sub _submitted {
     my $code;
 
     if ( defined($indicator) && ref $indicator ne 'CODE' ) {
+        DEBUG_PROCESS && debug( INDICATOR => $indicator );
+
         $code = sub { return defined $query->param($indicator) };
     }
     elsif ( !defined $indicator ) {
-        my @names =
-            uniq
+        my @names = uniq
             grep {defined}
-            map  { $_->nested_name }
-                @{ $self->get_fields };
+            map  { $_->nested_name } @{ $self->get_fields };
+
+        DEBUG_PROCESS && debug( 'no indicator, checking fields...' => \@names );
 
         $code = sub {
             grep { defined $query->param($_) } @names;
@@ -415,18 +440,18 @@ sub _build_params {
 
     $self->_processed_params( \%params );
 
+    DEBUG_PROCESS && debug( 'PROCESSED PARAMS' => \%params );
+
     return;
 }
 
 sub _process_file_uploads {
     my ($self) = @_;
 
-    my @names =
-        uniq
-        grep { defined }
+    my @names = uniq
+        grep {defined}
         map  { $_->nested_name }
-        grep { $_->isa('HTML::FormFu::Element::File') }
-            @{ $self->get_fields };
+        grep { $_->isa('HTML::FormFu::Element::File') } @{ $self->get_fields };
 
     if (@names) {
         my $query_class = $self->query_type;
@@ -474,7 +499,15 @@ sub _constrain_input {
 
     for my $constraint ( @{ $self->get_constraints } ) {
 
+        DEBUG_CONSTRAINTS && debug(
+            'FIELD NAME'      => $constraint->field->nested_name,
+            'CONSTRAINT TYPE' => $constraint->type,
+        );
+
         my @errors = eval { $constraint->process($params) };
+
+        DEBUG_CONSTRAINTS && debug( ERRORS => \@errors );
+        DEBUG_CONSTRAINTS && debug( '$@'   => $@ );
 
         if ( blessed $@ && $@->isa('HTML::FormFu::Exception::Constraint') ) {
             push @errors, $@;
@@ -505,10 +538,10 @@ sub _inflate_input {
 
     for my $inflator ( @{ $self->get_inflators } ) {
         my $name = $inflator->nested_name;
-        
+
         next if !defined $name;
         next if !$self->nested_hash_key_exists( $params, $name );
-        next if any { defined } @{ $inflator->parent->get_errors };
+        next if any {defined} @{ $inflator->parent->get_errors };
 
         my $value = $self->get_nested_hash_value( $params, $name );
 
@@ -543,10 +576,10 @@ sub _validate_input {
 
     for my $validator ( @{ $self->get_validators } ) {
         my $name = $validator->nested_name;
-        
+
         next if !defined $name;
         next if !$self->nested_hash_key_exists( $params, $name );
-        next if any { defined } @{ $validator->parent->get_errors };
+        next if any {defined} @{ $validator->parent->get_errors };
 
         my @errors = eval { $validator->process($params) };
 
@@ -575,14 +608,14 @@ sub _transform_input {
 
     for my $transformer ( @{ $self->get_transformers } ) {
         my $name = $transformer->nested_name;
-        
+
         next if !defined $name;
         next if !$self->nested_hash_key_exists( $params, $name );
-        next if any { defined } @{ $transformer->parent->get_errors };
+        next if any {defined} @{ $transformer->parent->get_errors };
 
         my $value = $self->get_nested_hash_value( $params, $name );
 
-        my ( @errors ) = eval { $transformer->process( $value, $params ) };
+        my (@errors) = eval { $transformer->process( $value, $params ) };
 
         if ( blessed $@ && $@->isa('HTML::FormFu::Exception::Transformer') ) {
             push @errors, $@;
@@ -613,7 +646,7 @@ sub _build_valid_names {
 
     for my $field ( @{ $self->get_fields } ) {
         my $name = $field->nested_name;
-        
+
         next if !defined $name;
         next if $skip_private && $field->name =~ /^_/;
 
@@ -625,17 +658,15 @@ sub _build_valid_names {
         }
     }
 
-    push @names,
-        uniq
+    push @names, uniq
         grep { ref $params->{$_} ne 'HASH' }
         grep { !( $skip_private && /^_/ ) }
         grep { !exists $non_param{$_} }
-            keys %$params
-            ;
+        keys %$params;
 
     my %valid;
 
-    CHECK:
+CHECK:
     for my $name (@names) {
         for my $error (@errors) {
             next CHECK if $name eq $error;
@@ -657,12 +688,12 @@ sub _hash_keys {
         if ( ref $hash->{$key} eq 'HASH' ) {
             push @names,
                 map { $subscript ? "${key}[${_}]" : "$key.$_" }
-                    _hash_keys( $hash->{$key}, $subscript );
+                _hash_keys( $hash->{$key}, $subscript );
         }
         elsif ( ref $hash->{$key} eq 'ARRAY' ) {
             push @names,
                 map { $subscript ? "${key}[${_}]" : "$key.$_" }
-                    _array_indices( $hash->{$key}, $subscript );
+                _array_indices( $hash->{$key}, $subscript );
         }
         else {
             push @names, $key;
@@ -681,12 +712,12 @@ sub _array_indices {
         if ( ref $array->[$i] eq 'HASH' ) {
             push @names,
                 map { $subscript ? "${i}[${_}]" : "$i.$_" }
-                    _hash_keys( $array->[$i], $subscript );
+                _hash_keys( $array->[$i], $subscript );
         }
         elsif ( ref $array->[$i] eq 'ARRAY' ) {
             push @names,
                 map { $subscript ? "${i}[${_}]" : "$i.$_" }
-                    _array_indices( $array->[$i], $subscript );
+                _array_indices( $array->[$i], $subscript );
         }
         else {
             push @names, $i;
@@ -817,20 +848,19 @@ sub valid {
 
         # not found - see if it's the name of a nested block
         my $parent;
-        
+
         if ( defined $self->nested_name && $self->nested_name eq $name ) {
             $parent = $self;
         }
         else {
             ($parent)
                 = first { $_->isa('HTML::FormFu::Element::Block') }
-                    @{ $self->get_all_elements( { nested_name => $name, } ) };
+            @{ $self->get_all_elements( { nested_name => $name, } ) };
         }
 
         if ( defined $parent ) {
-            my $fail = any { defined }
-                       map { @{ $_->get_errors } }
-                           @{ $parent->get_fields };
+            my $fail = any {defined}
+            map { @{ $_->get_errors } } @{ $parent->get_fields };
 
             return 1 if !$fail;
         }
@@ -848,14 +878,12 @@ sub has_errors {
     return if !$self->submitted;
 
     my @names = map { $_->nested_name }
-                grep { @{ $_->get_errors } }
-                grep { defined $_->nested_name }
-                    @{ $self->get_fields }
-                    ;
+        grep { @{ $_->get_errors } }
+        grep { defined $_->nested_name } @{ $self->get_fields };
 
     if (@_) {
         my $name = shift;
-        return 1 if any { /\Q$name/ } @names;
+        return 1 if any {/\Q$name/} @names;
         return;
     }
 
@@ -886,6 +914,7 @@ sub _single_plugin {
         $arg_ref = { type => $arg_ref };
     }
     elsif ( ref $arg_ref eq 'HASH' ) {
+
         # shallow clone
         $arg_ref = {%$arg_ref};
     }
@@ -897,11 +926,10 @@ sub _single_plugin {
     my @return;
 
     my @names = map { ref $_ ? @$_ : $_ }
-                grep { defined }
-                    ( delete $arg_ref->{name}, delete $arg_ref->{names} )
-                    ;
+        grep {defined} ( delete $arg_ref->{name}, delete $arg_ref->{names} );
 
     if (@names) {
+
         # add plugins to appropriate fields
         for my $x (@names) {
             for my $field ( @{ $self->get_fields( { nested_name => $x } ) } ) {
@@ -912,6 +940,7 @@ sub _single_plugin {
         }
     }
     else {
+
         # add plugin directly to form
         my $new = $self->_require_plugin( $type, $arg_ref );
 
@@ -944,9 +973,9 @@ sub render_data {
     my ( $self, $args ) = @_;
 
     my $render = $self->render_data_non_recursive( {
-        elements => [ map { $_->render_data } @{ $self->_elements } ],
-        $args ? %$args : (),
-    } );
+            elements => [ map { $_->render_data } @{ $self->_elements } ],
+            $args ? %$args : (),
+        } );
 
     return $render;
 }
@@ -968,11 +997,9 @@ sub render_data_non_recursive {
 
     $render{object} = $self;
 
-    if ( $self->force_error_message
+    if ($self->force_error_message
         || ( $self->has_errors
-            && defined $self->form_error_message
-            )
-        )
+            && defined $self->form_error_message ) )
     {
         $render{form_error_message} = xml_escape( $self->form_error_message );
     }
@@ -990,8 +1017,7 @@ sub string {
     my $render_ref
         = exists $args_ref->{render_data}
         ? $args_ref->{render_data}
-        : $self->render_data_non_recursive
-        ;
+        : $self->render_data_non_recursive;
 
     my $html = sprintf "<form%s>", process_attrs( $render_ref->{attributes} );
 
@@ -1197,7 +1223,7 @@ distribution.
         # do something with $form->params
     }
     else {
-    	# display the form
+        # display the form
         $template->param( form => $form );
     }
 
@@ -1235,6 +1261,13 @@ If you're using L<Catalyst>, a more suitable example might be:
             if ! $form->submitted;
         
     }
+
+Note: Because L</process> is automatically called for you by the Catalyst
+controller; if you make any modifications to the form within your action
+method, such as adding or changing elements, adding constraints, etc;
+you must call L</process> again yourself before using L</submitted_and_valid>,
+any of the methods listed under L</"SUBMITTED FORM VALUES AND ERRORS"> or
+L</"MODIFYING A SUBMITTED FORM">, or rendering the form.
 
 Here's an example of a config file to create a basic login form (all examples 
 here are L<YAML>, but you can use any format supported by L<Config::Any>), 
@@ -2350,6 +2383,19 @@ Arguments: [$key, @arguments]
 
 Compatible with the C<maketext> method in L<Locale::Maketext>.
 
+=head2 locale
+
+Arguments: $locale
+
+Currently only used by L<HTML::FormFu::Deflator::FormatNumber> and
+L<HTML::FormFu::Filter::FormatNumber>.
+
+This method is a special 'inherited accessor', which means it can be set on 
+the form, a block element or a single element. When the value is read, if 
+no value is defined it automatically traverses the element's hierarchy of 
+parents, through any block elements and up to the form, searching for a 
+defined value.
+
 =head1 PROCESSING A FORM
 
 =head2 query
@@ -2387,6 +2433,14 @@ L</"SUBMITTED FORM VALUES AND ERRORS"> and L</"MODIFYING A SUBMITTED FORM">.
 
 C<process> must also be called at least once before printing the form or
 calling L</render> or L</render_data>.
+
+Note to users of L<Catalyst::Controller::HTML::FormFu>: Because L</process>
+is automatically called for you by the Catalyst controller; if you make any
+modifications to the form within your action method, such as adding or changing
+elements, adding constraints, etc; you must call L</process> again yourself
+before using L</submitted_and_valid>, any of the methods listed under
+L</"SUBMITTED FORM VALUES AND ERRORS"> or
+L</"MODIFYING A SUBMITTED FORM">, or rendering the form.
 
 =head1 SUBMITTED FORM VALUES AND ERRORS
 
@@ -2703,6 +2757,35 @@ Like L</render_data>, but doesn't include the data for any child-elements.
 
 =head1 INTROSPECTION
 
+=head2 get_fields
+
+Arguments: [%options]
+
+Arguments: [\%options]
+
+Return Value: \@elements
+
+Returns all fields in the form (specifically, all elements which have a true 
+L<HTML::FormFu::Element/is_field> value.
+
+Accepts both C<name> and C<type> arguments to narrow the returned results.
+
+    $form->get_fields({
+        name => 'foo',
+        type => 'Radio',
+    });
+
+=head2 get_field
+
+Arguments: [%options]
+
+Arguments: [\%options]
+
+Return Value: $element
+
+Accepts the same arguments as L</get_fields>, but only returns the first 
+field found.
+
 =head2 get_elements
 
 Arguments: [%options]
@@ -2774,35 +2857,6 @@ first element found.
     });
 
 See L</get_all_elements> for a non-recursive version.
-
-=head2 get_fields
-
-Arguments: [%options]
-
-Arguments: [\%options]
-
-Return Value: \@elements
-
-Returns all fields in the form (specifically, all elements which have a true 
-L<HTML::FormFu::Element/is_field> value.
-
-Accepts both C<name> and C<type> arguments to narrow the returned results.
-
-    $form->get_fields({
-        name => 'foo',
-        type => 'Radio',
-    });
-
-=head2 get_field
-
-Arguments: [%options]
-
-Arguments: [\%options]
-
-Return Value: $element
-
-Accepts the same arguments as L</get_fields>, but only returns the first 
-field found.
 
 =head2 get_deflators
 
@@ -3134,6 +3188,8 @@ Daisuke Maki
 Andreas Marienborg
 
 Mario Minati
+
+Moritz Onken
 
 Based on the original source code of L<HTML::Widget>, by Sebastian Riedel, 
 C<sri@oook.de>.

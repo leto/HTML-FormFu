@@ -8,7 +8,7 @@ use HTML::FormFu::Constants qw( $EMPTY_STR );
 use DateTime::Format::Builder;
 use DateTime::Format::Strptime;
 
-__PACKAGE__->mk_item_accessors( qw( strptime time_zone _builder ) );
+__PACKAGE__->mk_item_accessors(qw( strptime time_zone _builder ));
 
 sub new {
     my $self = shift->next::method(@_);
@@ -54,6 +54,12 @@ sub inflator {
         # this is most likely what the user wants
         if ( defined $self->time_zone ) {
             $args{time_zone} = $self->time_zone;
+        }
+
+        if (  !exists $args{locale}
+            && defined( my $locale = $self->locale ) )
+        {
+            $args{locale} = $locale;
         }
 
         my $formatter = DateTime::Format::Strptime->new(%args);

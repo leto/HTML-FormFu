@@ -3,6 +3,14 @@ package HTML::FormFu::Constraint::Equal;
 use strict;
 use base 'HTML::FormFu::Constraint::_others';
 
+use HTML::FormFu::Util qw(
+    DEBUG_CONSTRAINTS
+    debug
+);
+use List::MoreUtils qw( all );
+
+our $EMPTY_STR = q{};
+
 sub process {
     my ( $self, $params ) = @_;
 
@@ -14,24 +22,37 @@ sub process {
 
     my $value = $self->get_nested_hash_value( $params, $self->nested_name );
 
+    DEBUG_CONSTRAINTS && debug( VALUE => $value );
+
     my @names = ref $others ? @{$others} : ($others);
     my @failed;
+    my %values;
 
     for my $name (@names) {
 
         my $other_value = $self->get_nested_hash_value( $params, $name );
 
+        DEBUG_CONSTRAINTS && debug( NAME => $name, VALUE => $value );
+
         my $ok = _values_eq( $value, $other_value );
 
-        if ( $self->not ? $ok : !$ok ) {
+        if ( $self->not() ? $ok : !$ok ) {
             push @failed, $name;
         }
+
+        $values{$name} = $other_value;
+    }
+
+    # special case for $self->not()
+    # no errors if all values are empty
+    if ( $self->not() && all { !defined || $_ eq $EMPTY_STR } values %values ) {
+        return;
     }
 
     return $self->mk_errors( {
             pass => @failed ? 0 : 1,
             failed => \@failed,
-            names  => \@names,
+            names  => [ $self->nested_name, @names ],
         } );
 }
 
@@ -70,7 +91,7 @@ sub _arrays_eq {
 
 sub _localize_args {
     my ($self) = @_;
-    
+
     return $self->parent->label;
 }
 

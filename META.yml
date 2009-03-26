@@ -7,7 +7,7 @@ build_requires:
   ExtUtils::MakeMaker: 6.11
   Test::NoWarnings: 0
 distribution_type: module
-generated_by: 'Module::Install version 0.77'
+generated_by: 'Module::Install version 0.80'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -16,11 +16,9 @@ name: HTML-FormFu
 no_index:
   directory:
     - examples
-    - share
-    - share
     - inc
+    - share
     - t
-    - examples
 requires:
   Captcha::reCAPTCHA: 0.92
   Class::Accessor::Chained::Fast: 0
@@ -41,10 +39,13 @@ requires:
   HTML::Scrubber: 0
   HTML::TokeParser::Simple: 3.14
   HTTP::Headers: 1.64
+  Hash::Flatten: 0
   List::MoreUtils: 0
   List::Util: 0
-  Locale::Maketext::Simple: 0
+  Locale::Maketext: 0
   Module::Pluggable: 0
+  Number::Format: 0
+  Path::Class::File: 0
   Readonly: 0
   Regexp::Common: 0
   Regexp::Copy: 0
@@ -54,4 +55,4 @@ requires:
   perl: 5.8.1
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.03007
+version: 0.04000

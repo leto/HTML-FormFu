@@ -7,7 +7,7 @@ use Class::C3;
 use HTML::FormFu::Constants qw( $EMPTY_STR );
 use HTML::FormFu::Util qw( append_xml_attribute process_attrs );
 
-__PACKAGE__->mk_item_accessors( qw( radiogroup_filename ) );
+__PACKAGE__->mk_item_accessors(qw( radiogroup_filename ));
 
 sub new {
     my $self = shift->next::method(@_);
@@ -78,6 +78,7 @@ no duplicated ID's.
 =head1 SEE ALSO
 
 Is a sub-class of, and inherits methods from 
+L<HTML::FormFu::Element::Checkboxgroup>, 
 L<HTML::FormFu::Element::_Group>, 
 L<HTML::FormFu::Element::_Field>, 
 L<HTML::FormFu::Element>

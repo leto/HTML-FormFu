@@ -13,11 +13,11 @@ __PACKAGE__->mk_item_accessors(qw/ input_type /);
 sub new {
     my $self = shift->next::method(@_);
 
-    $self->filename      ( 'input' );
-    $self->field_filename( 'checkboxgroup_tag' );
-    $self->label_tag     ( 'legend' );
-    $self->container_tag ( 'fieldset' );
-    $self->multi_value   ( 1 );
+    $self->filename('input');
+    $self->field_filename('checkboxgroup_tag');
+    $self->label_tag('legend');
+    $self->container_tag('fieldset');
+    $self->multi_value(1);
     $self->input_type('checkbox');
 
     return $self;
@@ -111,10 +111,10 @@ sub render_data_non_recursive {
     my ( $self, $args ) = @_;
 
     my $render = $self->next::method( {
-        field_filename => $self->field_filename,
-        input_type     => $self->input_type,
-        $args ? %$args : (),
-    } );
+            field_filename => $self->field_filename,
+            input_type     => $self->input_type,
+            $args ? %$args : (),
+        } );
 
     for my $item ( @{ $render->{options} } ) {
         if ( exists $item->{group} ) {
@@ -140,7 +140,8 @@ sub _string_field {
 
             for my $item ( @{ $option->{group} } ) {
                 $html .= sprintf
-                    qq{<span>\n<input name="%s" type="%s" value="%s"%s />},
+                    qq{<span%s>\n<input name="%s" type="%s" value="%s"%s />},
+                    process_attrs( $item->{container_attributes} ),
                     $render->{nested_name},
                     $render->{input_type},
                     $item->{value},
@@ -158,7 +159,8 @@ sub _string_field {
         }
         else {
             $html .= sprintf
-                qq{<span>\n<input name="%s" type="%s" value="%s"%s />},
+                qq{<span%s>\n<input name="%s" type="%s" value="%s"%s />},
+                process_attrs( $option->{container_attributes} ),
                 $render->{nested_name},
                 $render->{input_type},
                 $option->{value},

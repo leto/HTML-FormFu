@@ -3,15 +3,16 @@ package HTML::FormFu::Filter;
 use strict;
 use Class::C3;
 
-use HTML::FormFu::Attribute qw( mk_item_accessors mk_accessors );
+use HTML::FormFu::Attribute qw( mk_item_accessors mk_accessors
+    mk_inherited_accessors );
 use HTML::FormFu::ObjectUtil qw(
     populate form name parent nested_name nested_names get_nested_hash_value
     set_nested_hash_value nested_hash_key_exists );
 use Carp qw( croak );
 
-__PACKAGE__->mk_item_accessors( qw( type ) );
+__PACKAGE__->mk_item_accessors(qw( type ));
 
-__PACKAGE__->mk_accessors( qw( localize_args ) );
+__PACKAGE__->mk_accessors(qw( localize_args ));
 
 sub new {
     my $class = shift;
@@ -140,6 +141,8 @@ Shorthand for C<< $filter->parent->name >>
 =item L<HTML::FormFu::Filter::Default>
 
 =item L<HTML::FormFu::Filter::Encode>
+
+=item L<HTML::FormFu::Filter::FormatNumber>
 
 =item L<HTML::FormFu::Filter::HTMLEscape>
 

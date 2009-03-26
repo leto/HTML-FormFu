@@ -24,16 +24,19 @@ requires 'DateTime::Format::Natural';
 requires 'DateTime::Locale';
 requires 'Email::Valid';
 requires 'File::ShareDir';
+requires 'Hash::Flatten';
 requires 'HTML::Scrubber';
 requires 'HTML::TokeParser::Simple' => '3.14';
 requires 'HTTP::Headers' => '1.64';
 requires 'List::Util';
 requires 'List::MoreUtils';
-requires 'Locale::Maketext::Simple';
+requires 'Locale::Maketext';
 requires 'Module::Pluggable';
+requires 'Number::Format';
 requires 'Readonly';
 requires 'Regexp::Copy';
 requires 'Regexp::Common';
+requires 'Path::Class::File';
 requires 'Task::Weaken'; # to ensure Scalar::Util was built with weaken()
 requires 'Template'; # form->start and ->end still require TT
                      # so does t/elements/render_method
@@ -42,7 +45,7 @@ requires 'YAML::Syck' => '1.05';
 test_requires 'CGI'; # for file POST tests
 test_requires 'Test::NoWarnings';
 
-tests_recursive( 't', 't-aggregated' );
+tests_recursive( 't' );
 
 no_index directory => 'examples';
 

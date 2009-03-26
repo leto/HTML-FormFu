@@ -6,7 +6,7 @@ use Class::C3;
 
 use DateTime::Format::Builder;
 
-__PACKAGE__->mk_item_accessors( qw( _builder ) );
+__PACKAGE__->mk_item_accessors(qw( _builder ));
 
 sub new {
     my $self = shift->next::method(@_);
@@ -68,7 +68,7 @@ HTML::FormFu::Constraint::DateTime - DateTime constraint
         constraints:
           - type: DateTime
             parser:
-              regex: '^ (\d{2}) - (\d{2}) - (\d{4}) $'
+              regex: !!perl/regexp '^(\d{2}) - (\d{2}) - (\d{4})$'
               params: [day, month, year]
 
 An example of using the same parser declaration for both a DateTime

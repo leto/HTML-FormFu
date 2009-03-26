@@ -56,7 +56,7 @@ sub _add_hour {
 
     my $hour = $self->hour;
 
-    my $hour_name = $self->_build_name( 'hour' );
+    my $hour_name = $self->_build_name('hour');
 
     my @hour_prefix
         = ref $hour->{prefix}
@@ -66,12 +66,16 @@ sub _add_hour {
     @hour_prefix = map { [ '', $_ ] } @hour_prefix;
 
     $self->element( {
-            type => $hour->{type},
-            name => $hour_name,
-            options =>
-                [ @hour_prefix, map { [ $_, $_ ] } map { sprintf '%02d', $_ } 0 .. 23 ],
+            type    => $hour->{type},
+            name    => $hour_name,
+            options => [
+                @hour_prefix,
+                map { [ $_, $_ ] } map { sprintf '%02d', $_ } 0 .. 23
+            ],
 
-            defined $hour->{default} ? ( default => sprintf '%02d', $hour->{default} ) : (),
+            defined $hour->{default}
+            ? ( default => sprintf '%02d', $hour->{default} )
+            : (),
         } );
 
     return;
@@ -82,7 +86,7 @@ sub _add_minute {
 
     my $minute = $self->minute;
 
-    my $minute_name = $self->_build_name( 'minute' );
+    my $minute_name = $self->_build_name('minute');
 
     my @minute_prefix
         = ref $minute->{prefix}
@@ -92,12 +96,16 @@ sub _add_minute {
     @minute_prefix = map { [ '', $_ ] } @minute_prefix;
 
     $self->element( {
-            type => $minute->{type},
-            name => $minute_name,
-            options =>
-                [ @minute_prefix, map { [ $_, $_ ] } map { sprintf '%02d', $_ } 0 .. 59 ],
+            type    => $minute->{type},
+            name    => $minute_name,
+            options => [
+                @minute_prefix,
+                map { [ $_, $_ ] } map { sprintf '%02d', $_ } 0 .. 59
+            ],
 
-            defined $minute->{default} ? ( default => sprintf '%02d', $minute->{default} ) : (),
+            defined $minute->{default}
+            ? ( default => sprintf '%02d', $minute->{default} )
+            : (),
         } );
 
     return;
@@ -124,7 +132,7 @@ HTML::FormFu::Element::DateTime - Date / Time combo field
 =head1 DESCRIPTION
 
 Sub-class of L<Date element|HTML::FormFu::Element::Date>, providing extra
-C<year> and C<month> Select menus.
+C<hour> and C<minute> Select menus.
 
 =head1 METHODS
 

@@ -6,7 +6,7 @@ use Class::C3;
 
 use HTML::FormFu::Constants qw( $EMPTY_STR );
 
-__PACKAGE__->mk_item_accessors( qw( render_value ) );
+__PACKAGE__->mk_item_accessors(qw( render_value ));
 
 sub new {
     my $self = shift->next::method(@_);
@@ -23,9 +23,10 @@ sub process_value {
     my $new;
 
     if ( $submitted && $self->render_value ) {
-        $new = defined $value ? $value
-             :                  $EMPTY_STR
-             ;
+        $new
+            = defined $value
+            ? $value
+            : $EMPTY_STR;
 
         if ( $self->retain_default && $new eq $EMPTY_STR ) {
             $new = $self->value;
@@ -60,6 +61,15 @@ HTML::FormFu::Element::Password - Password form field
 Password form field.
 
 =head1 METHODS
+
+=head2 render_value
+
+Normally, when a form is redisplayed because of errors, password fields
+lose their values, requiring the user to retype it.
+
+If C<render_value> is true, password fields won't lose their value.
+
+Default value: false
 
 =head1 SEE ALSO
 

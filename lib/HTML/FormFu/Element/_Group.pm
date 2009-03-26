@@ -11,10 +11,10 @@ use List::MoreUtils qw( none );
 use Storable qw( dclone );
 use Carp qw( croak );
 
-our @EXPORT_OK = qw( _process_options_from_model ); # used by ComboBox
+our @EXPORT_OK = qw( _process_options_from_model );    # used by ComboBox
 
-__PACKAGE__->mk_item_accessors( qw( _options empty_first ) );
-__PACKAGE__->mk_output_accessors( qw( empty_first_label ) );
+__PACKAGE__->mk_item_accessors(qw( _options empty_first ));
+__PACKAGE__->mk_output_accessors(qw( empty_first_label ));
 
 my @ALLOWED_OPTION_KEYS = qw(
     group
@@ -28,6 +28,10 @@ my @ALLOWED_OPTION_KEYS = qw(
     attrs
     attributes_xml
     attrs_xml
+    container_attributes
+    container_attrs
+    container_attributes_xml
+    container_attrs_xml
     label_attributes
     label_attrs
     label_attributes_xml
@@ -37,7 +41,7 @@ my @ALLOWED_OPTION_KEYS = qw(
 sub new {
     my $self = shift->next::method(@_);
 
-    $self->_options            ( [] );
+    $self->_options( [] );
     $self->container_attributes( {} );
 
     return $self;
@@ -65,15 +69,14 @@ sub _process_options_from_model {
     # don't run if {options_from_model} is set and is 0
 
     my $option_flag
-        = exists $args->{options_from_model} ? $args->{options_from_model}
-        :                                      1
-        ;
+        = exists $args->{options_from_model}
+        ? $args->{options_from_model}
+        : 1;
 
     return if !$option_flag;
 
     $self->options(
-        [ $self->form->model->options_from_model( $self, $args ) ]
-    );
+        [ $self->form->model->options_from_model( $self, $args ) ] );
 
     return;
 }
@@ -110,10 +113,11 @@ sub _get_empty_first_option {
     my $label = $self->empty_first_label || '';
 
     return {
-        value            => '',
-        label            => $label,
-        attributes       => {},
-        label_attributes => {},
+        value                => '',
+        label                => $label,
+        attributes           => {},
+        container_attributes => {},
+        label_attributes     => {},
     };
 }
 
@@ -123,18 +127,21 @@ sub _parse_option {
     eval { my %x = %$item };
 
     if ( !$@ ) {
+
         # was passed a hashref
         return $self->_parse_option_hashref($item);
     }
 
     eval { my @x = @$item };
     if ( !$@ ) {
+
         # was passed an arrayref
         return {
-            value            => $item->[0],
-            label            => $item->[1],
-            attributes       => {},
-            label_attributes => {},
+            value                => $item->[0],
+            label                => $item->[1],
+            attributes           => {},
+            container_attributes => {},
+            label_attributes     => {},
         };
     }
 
@@ -156,7 +163,7 @@ sub _parse_option_hashref {
         if ( $short =~ s/attributes/attrs/ ) {
             for my $cmp (@keys) {
                 next if $cmp eq $key;
-                
+
                 croak "cannot use both '$key' and '$short' arguments"
                     if $cmp eq $short;
             }
@@ -173,9 +180,10 @@ sub _parse_option_hashref {
     }
 
     if ( !exists $item->{attributes} ) {
-        $item->{attributes} = exists $item->{attrs} ? $item->{attrs}
-                            :                         {}
-                            ;
+        $item->{attributes}
+            = exists $item->{attrs}
+            ? $item->{attrs}
+            : {};
     }
 
     if ( exists $item->{attributes_xml} ) {
@@ -190,11 +198,31 @@ sub _parse_option_hashref {
         }
     }
 
+    if ( !exists $item->{container_attributes} ) {
+        $item->{container_attributes}
+            = exists $item->{container_attrs}
+            ? $item->{container_attrs}
+            : {};
+    }
+
+    if ( exists $item->{container_attributes_xml} ) {
+        for my $key ( keys %{ $item->{container_attributes_xml} } ) {
+            $item->{container_attributes}{$key}
+                = literal( $item->{container_attributes_xml}{$key} );
+        }
+    }
+    elsif ( exists $item->{container_attrs_xml} ) {
+        for my $key ( keys %{ $item->{container_attrs_xml} } ) {
+            $item->{container_attributes}{$key}
+                = literal( $item->{container_attrs_xml}{$key} );
+        }
+    }
+
     if ( !exists $item->{label_attributes} ) {
         $item->{label_attributes}
-            = exists $item->{label_attrs} ? $item->{label_attrs}
-            :                               {}
-            ;
+            = exists $item->{label_attrs}
+            ? $item->{label_attrs}
+            : {};
     }
 
     if ( exists $item->{label_attributes_xml} ) {
@@ -237,19 +265,21 @@ sub values {
     croak "values argument must be a single array-ref of values" if @_ > 2;
 
     my @values;
-    
+
     if ( defined $arg ) {
         eval { @values = @$arg };
         croak "values argument must be an array-ref" if $@;
     }
 
     my @new = map { {
-        value            => $_,
-        label            => ucfirst $_,
-        attributes       => {},
-        label_attributes => {},
-        } } @values;
-    
+            value                => $_,
+            label                => ucfirst $_,
+            attributes           => {},
+            container_attributes => {},
+            label_attributes     => {},
+        }
+    } @values;
+
     if ( $self->empty_first ) {
         unshift @new, $self->_get_empty_first_option;
     }
@@ -284,11 +314,17 @@ sub prepare_attrs {
 
     my $submitted = $self->form->submitted;
     my $default   = $self->default;
-    
+
     my $value
         = defined $self->name
         ? $self->get_nested_hash_value( $self->form->input, $self->nested_name )
         : undef;
+
+    if ( !$submitted && defined $default ) {
+        for my $deflator ( @{ $self->_deflators } ) {
+            $default = $deflator->process($default);
+        }
+    }
 
     for my $option ( @{ $render->{options} } ) {
         if ( exists $option->{group} ) {
@@ -310,9 +346,9 @@ sub render_data_non_recursive {
     my ( $self, $args ) = @_;
 
     my $render = $self->next::method( {
-        options => dclone( $self->_options ),
-        $args ? %$args : (),
-    } );
+            options => dclone( $self->_options ),
+            $args ? %$args : (),
+        } );
 
     $self->_quote_options( $render->{options} );
 
@@ -337,9 +373,10 @@ sub string {
 
     $args ||= {};
 
-    my $render = exists $args->{render_data} ? $args->{render_data}
-               :                               $self->render_data
-               ;
+    my $render
+        = exists $args->{render_data}
+        ? $args->{render_data}
+        : $self->render_data;
 
     # field wrapper template - start
 
@@ -445,6 +482,12 @@ When using the hash-ref construct, the C<label_xml> and C<label_loc>
 variants of C<label> are supported, as are the C<value_xml> and C<value_loc> 
 variants of C<value>, the C<attributes_xml> variant of C<attributes> and the 
 C<label_attributes_xml> variant of C<label_attributes>.
+
+C<container_attributes> or C<container_attributes_xml> is used by 
+L<HTML::FormFu::Element::Checkboxgroup> and 
+L<HTML::FormFu::Element::Radiogroup> for the c<span> surrounding each
+item's input and label. It is ignored by L<HTML::FormFu::Element::Select>
+elements. 
 
 =head2 values
 

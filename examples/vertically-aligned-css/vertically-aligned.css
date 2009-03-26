@@ -61,6 +61,12 @@ fieldset .error.label {
 	margin: 0;
 }
 
+form .form_error_message {
+	padding: 0.5em;
+	border: 1px solid #ff0000;
+	background-color: #ffdddd;
+}
+
 fieldset .error_message {
        display: block;
        color: #ff0000;
@@ -158,12 +164,13 @@ fieldset .notes {
 }
 
 fieldset .multi.vertical input,
-fieldset.checkboxgroup.vertical input,
-fieldset.radiogroup.vertical input
+fieldset.checkboxgroup .vertical input,
+fieldset.radiogroup .vertical input
 {
 	display: block;
 	float: left;
 	clear: left;
+	margin-right: 0.5em;
 }
 
 fieldset .multi.vertical select {
@@ -172,14 +179,14 @@ fieldset .multi.vertical select {
 	clear: right;
 }
 
-fieldset.checkboxgroup.vertical label,
-fieldset.radiogroup.vertical label
+fieldset.checkboxgroup .vertical label,
+fieldset.radiogroup .vertical label
 {
 	display: block;
 	clear: right;
 }
 
-fieldset.radiogroup.vertical .subgroup {
+fieldset.radiogroup .vertical .subgroup {
 	float: left;
 }
 
