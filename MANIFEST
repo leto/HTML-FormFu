@@ -251,6 +251,7 @@ share/templates/tt/xhtml/textarea_tag
 t/01use.t
 t/04basic.t
 t/04basic.yml
+t/05_repeated_render.t
 t/block_insert_after.t
 t/block_insert_before.t
 t/bugs/constructor_arg_overwrites_default.t
