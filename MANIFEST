@@ -669,6 +669,8 @@ t/nested/elements/radio_retain_default.t
 t/nested/elements/radiogroup.t
 t/nested/elements/radiogroup_force_default.t
 t/nested/elements/radiogroup_retain_default.t
+t/nested/elements/repeatable_repeatable.t
+t/nested/elements/repeatable_repeatable.yml
 t/nested/elements/select.t
 t/nested/elements/select_force_default.t
 t/nested/elements/select_retain_default.t
