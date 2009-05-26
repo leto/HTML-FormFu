@@ -1,11 +1,7 @@
 #line 1
 package Module::Install::Base;
 
-use strict 'vars';
-use vars qw{$VERSION};
-BEGIN {
-	$VERSION = '0.87';
-}
+$VERSION = '0.83';
 
 # Suspend handler for "redefined" warnings
 BEGIN {
@@ -16,7 +12,7 @@ BEGIN {
 ### This is the ONLY module that shouldn't have strict on
 # use strict;
 
-#line 45
+#line 41
 
 sub new {
 	my ($class, %args) = @_;
@@ -31,7 +27,7 @@ sub new {
 	bless( \%args, $class );
 }
 
-#line 66
+#line 62
 
 sub AUTOLOAD {
 	my $self = shift;
@@ -42,13 +38,13 @@ sub AUTOLOAD {
 	goto &$autoload;
 }
 
-#line 83
+#line 79
 
 sub _top {
 	$_[0]->{_top};
 }
 
-#line 98
+#line 94
 
 sub admin {
 	$_[0]->_top->{admin}
@@ -56,7 +52,7 @@ sub admin {
 	Module::Install::Base::FakeAdmin->new;
 }
 
-#line 114
+#line 110
 
 sub is_admin {
 	$_[0]->admin->VERSION;
@@ -67,7 +63,6 @@ sub DESTROY {}
 package Module::Install::Base::FakeAdmin;
 
 my $fake;
-
 sub new {
 	$fake ||= bless(\@_, $_[0]);
 }
@@ -83,4 +78,4 @@ BEGIN {
 
 1;
 
-#line 162
+#line 157

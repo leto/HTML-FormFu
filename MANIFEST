@@ -607,6 +607,8 @@ t/load_config_file_multiple1.yml
 t/load_config_file_multiple2.yml
 t/load_config_filestem.t
 t/model/hashref_create.t
+t/model/hashref_create_repeatable_without_nestedname.t
+t/model/hashref_create_repeatable_without_nestedname.yml
 t/model/hashref_default_values.t
 t/model/hashref_escaping.t
 t/model/hashref_multi_within_rep.t
