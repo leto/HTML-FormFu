@@ -144,6 +144,7 @@ lib/HTML/FormFu/Element/File.pm
 lib/HTML/FormFu/Element/Hidden.pm
 lib/HTML/FormFu/Element/Hr.pm
 lib/HTML/FormFu/Element/Image.pm
+lib/HTML/FormFu/Element/Label.pm
 lib/HTML/FormFu/Element/Multi.pm
 lib/HTML/FormFu/Element/Number.pm
 lib/HTML/FormFu/Element/Password.pm
@@ -256,6 +257,7 @@ t/block_insert_after.t
 t/block_insert_before.t
 t/bugs/constructor_arg_overwrites_default.t
 t/bugs/date_element_empty_input.t
+t/bugs/datetime_hour_lt_10.t
 t/bugs/element_class.t
 t/bugs/element_parent.t
 t/bugs/error_msg.t
@@ -403,6 +405,7 @@ t/elements/file_post_cgi_simple.t
 t/elements/hidden.t
 t/elements/hr.t
 t/elements/image.t
+t/elements/label.t
 t/elements/label.yml
 t/elements/multi.t
 t/elements/multi_errors.t
@@ -567,6 +570,8 @@ t/form/submitted.t
 t/form/submitted_and_valid.t
 t/form/valid.t
 t/i18n/add_localize_object.t
+t/i18n/add_localize_object_from_class.t
+t/i18n/add_localize_object_from_class.yml
 t/inflators/array.t
 t/inflators/callback.t
 t/inflators/compounddatetime.t

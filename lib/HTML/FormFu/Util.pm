@@ -125,11 +125,11 @@ sub _get_elements {
 
     for my $name ( keys %$args ) {
         my $value;
-
+        next unless defined $args->{$name};
         @$elements = grep {
                    $_->can($name)
                 && defined( $value = $_->$name )
-                && $value eq $args->{$name}
+                && (ref($args->{$name}) eq 'Regexp' ? $value =~ $args->{$name} : $value eq $args->{$name})
         } @$elements;
     }
 
