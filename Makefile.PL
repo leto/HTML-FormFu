@@ -1,5 +1,9 @@
 use inc::Module::Install 0.75;
 
+if ( -e 'MANIFEST.SKIP' ) {
+    system( 'pod2text lib/HTML/FormFu.pm > README' );
+}
+
 name 'HTML-FormFu';
 perl_version '5.008001';
 all_from 'lib/HTML/FormFu.pm';
@@ -45,6 +49,7 @@ requires 'YAML::Syck' => '1.05';
 
 test_requires 'CGI'; # for file POST tests
 test_requires 'Test::NoWarnings';
+test_requires 'Test::More' => '0.92';
 
 tests_recursive( 't' );
 

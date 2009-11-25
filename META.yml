@@ -5,11 +5,12 @@ author:
 build_requires:
   CGI: 0
   ExtUtils::MakeMaker: 6.42
+  Test::More: 0.92
   Test::NoWarnings: 0
 configure_requires:
   ExtUtils::MakeMaker: 6.42
 distribution_type: module
-generated_by: 'Module::Install version 0.83'
+generated_by: 'Module::Install version 0.91'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -21,6 +22,7 @@ no_index:
     - inc
     - share
     - t
+    - xt
 requires:
   Captcha::reCAPTCHA: 0.92
   Class::Accessor::Chained::Fast: 0
@@ -58,4 +60,4 @@ requires:
   perl: 5.8.1
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.05001
+version: 0.05002

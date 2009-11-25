@@ -229,6 +229,7 @@ lib/HTML/FormFu/Validator/Callback.pm
 Makefile.PL
 MANIFEST			This list of files
 META.yml
+README
 share/templates/tt/xhtml/block
 share/templates/tt/xhtml/checkboxgroup
 share/templates/tt/xhtml/checkboxgroup_tag
@@ -436,6 +437,8 @@ t/elements/radiogroup_unknown_opt.t
 t/elements/radiogroup_xml.t
 t/elements/recaptcha.t
 t/elements/recaptcha.yml
+t/elements/recaptcha_constraint_args.t
+t/elements/recaptcha_constraint_args.yml
 t/elements/render_method.t
 t/elements/repeatable_counter_name.t
 t/elements/repeatable_counter_name.yml
@@ -618,6 +621,7 @@ t/model/hashref_default_values.t
 t/model/hashref_escaping.t
 t/model/hashref_multi_within_rep.t
 t/model/hashref_multi_within_rep.yml
+t/model/hashref_process.t
 t/multiform-misc/accessors.t
 t/multiform-misc/accessors.yml
 t/multiform-nested-name/0_render_page_1.t
