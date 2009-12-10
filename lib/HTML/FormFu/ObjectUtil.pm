@@ -11,7 +11,7 @@ use HTML::FormFu::Util qw(
 use Config::Any;
 use Data::Visitor::Callback;
 use File::Spec;
-use Scalar::Util qw( refaddr weaken blessed );
+use Scalar::Util qw( refaddr reftype weaken blessed );
 use List::MoreUtils qw( none uniq );
 use Storable qw( dclone );
 use Carp qw( croak );
@@ -81,6 +81,7 @@ our @EXPORT_OK = (
         deflator
         load_config_file        load_config_filestem
         form
+        get_parent
         insert_before           insert_after
         clone
         name
@@ -242,8 +243,8 @@ sub _require_constraint {
 
     croak 'required arguments: $self, $type, \%options' if @_ != 3;
 
-    eval { my %x = %$arg };
-    croak "options argument must be hash-ref" if $@;
+    croak "options argument must be hash-ref"
+        if reftype( $arg ) ne 'HASH';
 
     my $abs = $type =~ s/^\+//;
     my $not = 0;
@@ -319,6 +320,9 @@ sub clear_errors {
 
 sub populate {
     my ( $self, $arg_ref ) = @_;
+
+    croak "argument to populate() must be a hash-ref"
+        if reftype( $arg_ref ) ne 'HASH';
 
     # shallow clone the args so we don't stomp on them
     my %args = %$arg_ref;
@@ -453,10 +457,6 @@ sub _load_config {
     if ( scalar @filenames == 1 && ref $filenames[0] eq 'ARRAY' ) {
         @filenames = @{ $filenames[0] };
     }
-
-    # ImplicitUnicode ensures that values won't be double-encoded when we
-    # encode() our output
-    local $YAML::Syck::ImplicitUnicode = 1;
 
     my $config_callback = $self->config_callback;
     my $data_visitor;
@@ -946,6 +946,33 @@ sub parent {
     return $self->{parent};
 }
 
+sub get_parent {
+    my $self = shift;
+
+    return $self->parent
+        if !@_;
+
+    my %args = _parse_args(@_);
+
+    while ( defined ( my $parent = $self->parent ) ) {
+        
+        for my $name ( keys %args ) {
+            my $value;
+
+            if (   $parent->can($name)
+                && defined( $value = $parent->$name )
+                && $value eq $args{$name} )
+            {
+                return $parent;
+            }
+        }
+
+        $self = $parent;
+    }
+    
+    return;
+}
+
 sub element {
     my ( $self, $arg ) = @_;
     my @return;
@@ -1392,8 +1419,8 @@ sub _require_deflator {
 
     croak 'required arguments: $self, $type, \%options' if @_ != 3;
 
-    eval { my %x = %$opt };
-    croak "options argument must be hash-ref" if $@;
+    croak "options argument must be hash-ref"
+        if reftype( $opt ) ne 'HASH';
 
     my $class = $type;
     if ( not $class =~ s/^\+// ) {
@@ -1427,8 +1454,8 @@ sub _require_filter {
 
     croak 'required arguments: $self, $type, \%options' if @_ != 3;
 
-    eval { my %x = %$opt };
-    croak "options argument must be hash-ref" if $@;
+    croak "options argument must be hash-ref"
+        if reftype( $opt ) ne 'HASH';
 
     my $class = $type;
     if ( not $class =~ s/^\+// ) {
@@ -1461,8 +1488,8 @@ sub _require_inflator {
 
     croak 'required arguments: $self, $type, \%options' if @_ != 3;
 
-    eval { my %x = %$opt };
-    croak "options argument must be hash-ref" if $@;
+    croak "options argument must be hash-ref"
+        if reftype( $opt ) ne 'HASH';
 
     my $class = $type;
     if ( not $class =~ s/^\+// ) {
@@ -1496,8 +1523,8 @@ sub _require_validator {
 
     croak 'required arguments: $self, $type, \%options' if @_ != 3;
 
-    eval { my %x = %$opt };
-    croak "options argument must be hash-ref" if $@;
+    croak "options argument must be hash-ref"
+        if reftype( $opt ) ne 'HASH';
 
     my $class = $type;
     if ( not $class =~ s/^\+// ) {
@@ -1530,8 +1557,8 @@ sub _require_transformer {
 
     croak 'required arguments: $self, $type, \%options' if @_ != 3;
 
-    eval { my %x = %$opt };
-    croak "options argument must be hash-ref" if $@;
+    croak "options argument must be hash-ref"
+        if reftype( $opt ) ne 'HASH';
 
     my $class = $type;
     if ( not $class =~ s/^\+// ) {
@@ -1566,8 +1593,8 @@ sub _require_plugin {
 
     croak 'required arguments: $self, $type, \%options' if @_ != 3;
 
-    eval { my %x = %$arg };
-    croak "options argument must be hash-ref" if $@;
+    croak "options argument must be hash-ref"
+        if reftype( $arg ) ne 'HASH';
 
     my $abs = $type =~ s/^\+//;
     my $class = $type;

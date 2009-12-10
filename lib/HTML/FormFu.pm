@@ -37,7 +37,7 @@ use HTML::FormFu::Util qw(
 
 use List::Util qw( first );
 use List::MoreUtils qw( any none uniq );
-use Scalar::Util qw( blessed refaddr weaken );
+use Scalar::Util qw( blessed refaddr reftype weaken );
 use Storable qw( dclone );
 use Regexp::Copy;
 use Carp qw( croak );
@@ -112,7 +112,7 @@ __PACKAGE__->mk_inherited_merging_accessors(qw( tt_args config_callback ));
 *plugins           = \&plugin;
 *add_plugins       = \&add_plugin;
 
-our $VERSION = '0.05004';
+our $VERSION = '0.06000';
 $VERSION = eval $VERSION;
 
 Class::C3::initialize();
@@ -1135,8 +1135,8 @@ sub _require_output_processor {
 
     croak 'required arguments: $self, $type, \%options' if @_ != 3;
 
-    eval { my %x = %$opt };
-    croak "options argument must be hash-ref" if $@;
+    croak "options argument must be hash-ref"
+        if reftype( $opt ) ne 'HASH';
 
     my $class = $type;
     if ( not $class =~ s/^\+// ) {
@@ -2197,7 +2197,8 @@ L<id|HTML::FormFu::Element/id> attribute, if it doesn't have one already.
 
 The following character substitution will be performed: C<%f> will be
 replaced by L<< $form->id|/id >>, C<%n> will be replaced by
-L<< $field->name|HTML::FormFu::Element/name >>.
+L<< $field->name|HTML::FormFu::Element/name >>, C<%r> will be replaced by
+L<< $block->repeatable_count|HTML::FormFu::Element::Repeatable/repeatable_count >>.
 
 Default Value: not defined
 
@@ -3203,6 +3204,8 @@ Carl Franks
 
 Brian Cassidy
 
+Ozum Eldogan
+
 Ruben Fonseca
 
 Ronald Kimball
@@ -3213,7 +3216,11 @@ Andreas Marienborg
 
 Mario Minati
 
+Steve Nolte
+
 Moritz Onken
+
+Doug Orleans
 
 Based on the original source code of L<HTML::Widget>, by Sebastian Riedel,
 C<sri@oook.de>.

@@ -30,8 +30,7 @@ requires:
   Config::Any: 0.10
   Crypt::CBC: 0
   Crypt::DES: 0
-  Data::Visitor: 0.23
-  Data::Visitor::Callback: 0
+  Data::Visitor: 0.26
   Date::Calc: 0
   DateTime: 0.38
   DateTime::Format::Builder: 0.7901
@@ -56,8 +55,8 @@ requires:
   Regexp::Copy: 0
   Task::Weaken: 0
   Template: 0
-  YAML::Syck: 1.05
+  YAML::XS: 0.32
   perl: 5.8.1
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.05004
+version: 0.06000

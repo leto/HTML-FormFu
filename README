@@ -937,7 +937,8 @@ CSS CLASSES
     attribute, if it doesn't have one already.
 
     The following character substitution will be performed: %f will be
-    replaced by $form->id, %n will be replaced by $field->name.
+    replaced by $form->id, %n will be replaced by $field->name, %r will be
+    replaced by $block->repeatable_count.
 
     Default Value: not defined
 
@@ -1850,6 +1851,8 @@ AUTHORS
 CONTRIBUTORS
     Brian Cassidy
 
+    Ozum Eldogan
+
     Ruben Fonseca
 
     Ronald Kimball
@@ -1860,7 +1863,11 @@ CONTRIBUTORS
 
     Mario Minati
 
+    Steve Nolte
+
     Moritz Onken
+
+    Doug Orleans
 
     Based on the original source code of HTML::Widget, by Sebastian Riedel,
     "sri@oook.de".

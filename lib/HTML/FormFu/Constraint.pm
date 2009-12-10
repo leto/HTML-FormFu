@@ -10,16 +10,21 @@ use HTML::FormFu::Util qw(
     debug
 );
 use List::MoreUtils qw( any );
-use Scalar::Util qw( blessed );
+use List::Util qw( first );
+use Scalar::Util qw( reftype blessed );
 use Storable qw( dclone );
 use Carp qw( croak );
+
+__PACKAGE__->mk_accessors(qw( only_on_reps ));
 
 __PACKAGE__->mk_item_accessors(qw( not force_errors when ));
 
 sub process {
     my ( $self, $params ) = @_;
 
-    my $value = $self->get_nested_hash_value( $params, $self->nested_name );
+    return unless $self->_run_this_rep;
+
+    my $value = $self->_find_field_value( $params );
 
     my @errors;
 
@@ -55,6 +60,57 @@ sub process {
 
     return @errors;
 }
+
+sub _run_this_rep {
+    my ($self) = @_;
+    
+    my $only_on_reps = $self->only_on_reps
+        or return 1;
+    
+    my $current_rep = $self->field->repeatable_count
+        or return 1;
+    
+    $only_on_reps = [$only_on_reps]
+        if ( reftype($only_on_reps) || '' ) ne 'ARRAY';
+    
+    return first { $current_rep == $_ } @$only_on_reps;
+}
+
+sub _find_field_value {
+    my ( $self, $params ) = @_;
+
+    my $value = $self->get_nested_hash_value( $params, $self->nested_name );
+
+    my @fields_with_this_name = @{ $self->form->get_fields({ nested_name => $self->nested_name }) };
+    
+    if ( @fields_with_this_name > 1 ) {
+        my $field = $self->parent;
+        my $index;
+        
+        for ( my $i=0; $i <= $#fields_with_this_name; ++$i ) {
+            if ( $fields_with_this_name[$i] eq $field ) {
+                $index = $i;
+                last;
+            }
+        }
+        
+        croak 'did not find ourself - how can this happen?'
+            if !defined $index;
+        
+        if ( reftype($value) eq 'ARRAY' ) {
+            $value = $value->[$index];
+        }
+        elsif ( $index == 0 ) {
+            # keep $value
+        }
+        else {
+            undef $value;
+        }
+    }
+    
+    return $value;
+}
+
 
 sub constrain_values {
     my ( $self, $values, $params ) = @_;
@@ -254,6 +310,19 @@ otherwise fail will pass, and vise-versa.
 This value is ignored by some constraints - see the documentation for
 individual constraints for details.
 
+=head2 only_on_reps
+
+Argument: \@repeatable_count
+
+For constraints added to fields within a
+L<Repeatable|HTML::FormFu::Element::Repeatable> element, if C<only_on_reps>
+is set, the constraint will only be run for fields whose
+L<repeatable_count|HTML::FormFu::Element::_Field/repeatable_count>
+matches one of these set values.
+
+Not available for the constraints listed in
+L<HTML::FormFu::Element::Repeatable/"Unsupported Constraints">.
+
 =head2 message
 
 Arguments: $string
@@ -405,6 +474,12 @@ value to not apply it.
 =item L<HTML::FormFu::Constraint::Word>
 
 =back
+
+=head1 CAVEATS
+
+See L<HTML::FormFu::Element::Repeatable/"Unsupported Constraints">
+for a list of constraints that won't work within
+L<HTML::FormFu::Element::Repeatable>.
 
 =head1 AUTHOR
 
