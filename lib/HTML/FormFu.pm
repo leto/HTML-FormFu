@@ -1357,7 +1357,7 @@ by any form.
       - file1
       - file2
 
-YAML multiple documents within a single file. The document start marker is
+YAML allows multiple documents within a single file. The document start marker is
 a line containing 3 dashes. Multiple documents will be applied in order,
 just as if multiple filenames had been given.
 

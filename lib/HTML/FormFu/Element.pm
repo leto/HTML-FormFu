@@ -246,7 +246,9 @@ HTML::FormFu::Element - Element Base Class
       
       - type: Password
         name: repeat-password
-      
+        container_attributes:
+            class: foo_class
+
       - type: Submit
 
 =head1 DESCRIPTION
@@ -403,6 +405,15 @@ L</add_attrs> is an alias for L</add_attributes>.
 See L<HTML::FormFu/add_attributes_xml> for details.
 
 L</add_attrs_xml> is an alias for L</add_attributes_xml>.
+
+=head2 container_attributes
+
+Arguments: [%attributes]
+
+Arguments: [\%attributes]
+
+Specify attributes for the div containing the given form element. This is especially useful for setting a class or id
+in a div so that it can be controlled by Javascript, such as showing/hiding advanced options to a form.
 
 =head2 del_attributes
 
